@@ -1,3 +1,4 @@
+use crate::tui::modes::App;
 use ::tui::{backend::CrosstermBackend, Terminal};
 use clap::Parser;
 use crossterm::{
@@ -6,10 +7,7 @@ use crossterm::{
 };
 use std::io;
 
-use crate::{
-    cpu::State,
-    tui::{run_app, App},
-};
+use crate::{cpu::State, tui::run_app};
 
 mod tui;
 

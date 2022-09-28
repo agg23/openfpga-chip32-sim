@@ -17,16 +17,15 @@ pub struct State {
 }
 
 impl State {
-    fn step(mut self) {
-        let current_inst_prefix = self.pc_byte();
+    pub fn step(&mut self) {
+        let inst_word = self.pc_word();
+        let [inst_prefix_byte, inst_suffix_byte] = inst_word.to_be_bytes();
 
-        self.pc += 1;
-
-        match current_inst_prefix {
+        match inst_prefix_byte {
             0x0 => {} // NOP
             0x02 => {
                 // LD.b Rx,(nnnn)
-                let reg = self.pc_byte();
+                let reg = inst_suffix_byte - 1;
                 let address = self.pc_word();
                 let value = self.ram.mem_read_word(address);
 

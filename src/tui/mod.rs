@@ -34,6 +34,9 @@ pub fn run_app<B: Backend>(
                 DisplayMode::Input(_) => match key.code {
                     KeyCode::Enter => {
                         match app.input.as_str() {
+                            "s" => {
+                                state.step();
+                            }
                             "m" => {
                                 app.displayMode = DisplayMode::Memory {
                                     address: 0,

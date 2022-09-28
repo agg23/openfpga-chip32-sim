@@ -8,6 +8,7 @@ use crate::mem::Memory;
 
 pub struct State {
     pub pc: u16,
+    pub sp: u16,
     pub work_regs: [u32; 16],
     pub carry: bool,
     pub zero: bool,
@@ -73,6 +74,8 @@ impl State {
 
         Ok(State {
             pc: 0x2,
+            // TODO: Is this right?
+            sp: 0,
             work_regs: [0; 16],
             carry: false,
             zero: false,

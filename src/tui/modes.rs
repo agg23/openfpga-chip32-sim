@@ -1,7 +1,7 @@
 use tui::widgets::TableState;
 
 pub enum DisplayMode {
-    Input,
+    Input(TableState),
     Memory { address: u16, state: TableState },
 }
 
@@ -16,7 +16,7 @@ impl Default for App {
     fn default() -> App {
         App {
             input: String::new(),
-            displayMode: DisplayMode::Input,
+            displayMode: DisplayMode::Input(TableState::default()),
         }
     }
 }

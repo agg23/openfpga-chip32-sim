@@ -13,6 +13,7 @@ use self::{
 mod main;
 mod memory;
 pub(crate) mod modes;
+pub(crate) mod util;
 
 pub fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -25,12 +26,12 @@ pub fn run_app<B: Backend>(
         if let Event::Key(key) = event::read()? {
             if (key.code == KeyCode::Esc) {
                 // Go to input
-                app.displayMode = DisplayMode::Input;
+                app.displayMode = DisplayMode::Input(TableState::default());
                 app.input = String::new();
             }
 
             match app.displayMode {
-                DisplayMode::Input => match key.code {
+                DisplayMode::Input(_) => match key.code {
                     KeyCode::Enter => {
                         match app.input.as_str() {
                             "m" => {
@@ -62,7 +63,9 @@ pub fn run_app<B: Backend>(
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &State) {
     match app.displayMode {
-        DisplayMode::Input => render_main(f, app, state),
+        DisplayMode::Input(ref mut table_state) => {
+            render_main(f, app.input.clone(), table_state, state)
+        }
         DisplayMode::Memory {
             address,
             state: ref mut table_state,

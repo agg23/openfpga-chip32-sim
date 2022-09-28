@@ -3,6 +3,17 @@ pub struct Memory {
 }
 
 impl Memory {
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        let mut ram = [0; 8 * 1024];
+
+        bytes
+            .iter()
+            .enumerate()
+            .for_each(|(i, byte)| ram[i] = *byte);
+
+        Memory { ram }
+    }
+
     pub fn mem_read_byte(&self, address: u16) -> u8 {
         let address = address as usize;
 

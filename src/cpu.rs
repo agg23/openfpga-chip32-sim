@@ -1,12 +1,18 @@
+use std::{
+    fs::File,
+    io::{self, Read},
+    path::Path,
+};
+
 use crate::mem::Memory;
 
-struct State {
-    pc: u16,
-    work_regs: [u32; 16],
-    carry: bool,
-    zero: bool,
+pub struct State {
+    pub pc: u16,
+    pub work_regs: [u32; 16],
+    pub carry: bool,
+    pub zero: bool,
 
-    ram: Memory,
+    pub ram: Memory,
 }
 
 impl State {
@@ -54,5 +60,23 @@ impl State {
 
     fn set_reg(&mut self, reg: u8, value: u32) {
         self.work_regs[reg as usize] = value;
+    }
+
+    // Loading
+
+    pub fn load_file(path_str: String) -> Result<Self, io::Error> {
+        let mut file = File::open(&path_str)?;
+
+        let mut buffer = Vec::<u8>::new();
+
+        file.read_to_end(&mut buffer)?;
+
+        Ok(State {
+            pc: 0x2,
+            work_regs: [0; 16],
+            carry: false,
+            zero: false,
+            ram: Memory::from_bytes(buffer),
+        })
     }
 }

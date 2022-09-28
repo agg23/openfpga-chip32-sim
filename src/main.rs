@@ -6,7 +6,10 @@ use crossterm::{
 };
 use std::io;
 
-use crate::tui::{run_app, App};
+use crate::{
+    cpu::State,
+    tui::{run_app, App},
+};
 
 mod tui;
 
@@ -24,7 +27,7 @@ struct Args {
 fn main() -> Result<(), io::Error> {
     let args = Args::parse();
 
-    println!("Hello {}!", args.bin);
+    let state = State::load_file(args.bin)?;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -34,7 +37,7 @@ fn main() -> Result<(), io::Error> {
 
     // create app and run it
     let app = App::default();
-    let res = run_app(&mut terminal, app);
+    let res = run_app(&mut terminal, app, state);
 
     // restore terminal
     disable_raw_mode()?;

@@ -1,5 +1,6 @@
 pub struct Memory {
     ram: [u8; 8 * 1024],
+    rom_size: usize,
 }
 
 impl Memory {
@@ -11,7 +12,10 @@ impl Memory {
             .enumerate()
             .for_each(|(i, byte)| ram[i] = *byte);
 
-        Memory { ram }
+        Memory {
+            ram,
+            rom_size: bytes.len(),
+        }
     }
 
     pub fn mem_read_byte(&self, address: u16) -> u8 {
@@ -40,14 +44,23 @@ impl Memory {
         )
     }
 
+    // TODO: Log message when you clobber the ROM data
     pub fn mem_write_byte(&mut self, address: u16, byte: u8) {
         let address = address as usize;
+
+        if (address < self.rom_size) {
+            println!("ERROR: Clobbering ROM data");
+        }
 
         self.ram[address] = byte;
     }
 
     pub fn mem_write_word(&mut self, address: u16, word: u16) {
         let address = address as usize;
+
+        if (address < self.rom_size) {
+            println!("ERROR: Clobbering ROM data");
+        }
 
         let [lower, upper] = word.to_le_bytes();
 
@@ -57,6 +70,10 @@ impl Memory {
 
     pub fn mem_write_long(&mut self, address: u16, word: u32) {
         let address = address as usize;
+
+        if (address < self.rom_size) {
+            println!("ERROR: Clobbering ROM data");
+        }
 
         let [lower_a, upper_a, lower_b, upper_b] = word.to_le_bytes();
 

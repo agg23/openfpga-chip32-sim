@@ -5,7 +5,7 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
-use crate::cpu::CPU;
+use chip32_sim::cpu::CPU;
 
 pub fn render_memory<B: Backend>(
     f: &mut Frame<B>,

@@ -9,7 +9,7 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-use crate::cpu::CPU;
+use chip32_sim::cpu::CPU;
 
 use self::{
     main::render_main,

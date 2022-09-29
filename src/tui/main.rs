@@ -5,8 +5,8 @@ use tui::{
     widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
-use crate::cpu::CPU;
 use crate::tui::util::NamedRow;
+use chip32_sim::cpu::CPU;
 
 pub fn render_main<B: Backend>(
     f: &mut Frame<B>,

@@ -7,12 +7,10 @@ use crossterm::{
 };
 use std::io;
 
-use crate::{cpu::CPU, tui::run_app};
+use crate::tui::run_app;
+use chip32_sim::cpu::CPU;
 
 mod tui;
-
-pub(crate) mod cpu;
-pub(crate) mod mem;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]

@@ -55,11 +55,19 @@ fn it_alu_32() {
 
 #[test]
 fn it_alu_double_reg() {
-    test_alu_with_target("asl", "r1,r2", 0xDEADBEEF, 0xBD5B7DDE, false, true);
-    test_alu_with_target("asl", "r1,r2", 0x7EADBEEF, 0xFD5B7DDE, false, false);
+    test_alu_with_target("asl", "r1,r2", 0xDEADBEEF, 1, 0xBD5B7DDE, false, true);
+    test_alu_with_target("asl", "r1,r2", 0x7EADBEEF, 1, 0xFD5B7DDE, false, false);
 
-    test_alu_with_target("lsr", "r1,r2", 0xDEADBEEF, 0x6F56DF77, false, true);
-    test_alu_with_target("lsr", "r1,r2", 0xDEADBEE0, 0x6F56DF70, false, false);
+    test_alu_with_target("lsr", "r1,r2", 0xDEADBEEF, 1, 0x6F56DF77, false, true);
+    test_alu_with_target("lsr", "r1,r2", 0xDEADBEE0, 1, 0x6F56DF70, false, false);
+
+    test_alu_with_target("rol", "r1,r2", 0x80000000, 1, 0x0, true, true);
+    test_alu_with_target("rol", "r1,r2", 0x80000000, 2, 0x0, true, false);
+    test_alu_with_target("rol", "r1,r2", 0x10000000, 2, 0x40000000, false, false);
+
+    test_alu_with_target("ror", "r1,r2", 0x00000001, 1, 0x0, true, true);
+    test_alu_with_target("ror", "r1,r2", 0x00000001, 2, 0x0, true, false);
+    test_alu_with_target("ror", "r1,r2", 0x10000000, 2, 0x04000000, false, false);
 }
 
 #[test]
@@ -74,7 +82,7 @@ fn test_alu(command: &str, immediate: u32, result: u32, bit32: bool) {
 fn test_alu_with_value(
     command: &str,
     immediate: u32,
-    value: u32,
+    r1_value: u32,
     result: u32,
     bit32: bool,
     zero: bool,
@@ -87,20 +95,22 @@ fn test_alu_with_value(
         format!("r1,#{immediate:#X}")
     };
 
-    test_alu_with_target(command, target.as_str(), value, result, zero, carry);
+    test_alu_with_target(command, target.as_str(), r1_value, 1, result, zero, carry);
 }
 
 fn test_alu_with_target(
     command: &str,
     target: &str,
-    value: u32,
+    r1_value: u32,
+    r2_value: u32,
     result: u32,
     zero: bool,
     carry: bool,
 ) {
     let spaceless_command = command.replace(" ", "_");
 
-    let value = format!("{value:#X}");
+    let r1_value = format!("{r1_value:#X}");
+    let r2_value = format!("{r2_value:#X}");
 
     test_command_without_setup(
         "tests/asm/alu.asm",
@@ -108,7 +118,8 @@ fn test_alu_with_target(
         HashMap::from([
             ("command", command),
             ("targets", target),
-            ("value", value.as_str()),
+            ("r1value", r1_value.as_str()),
+            ("r2value", r2_value.as_str()),
         ]),
         3,
         |cpu| {

@@ -1,12 +1,15 @@
 use std::{
     fs::File,
     io::{self, Read},
-    ops::Shl,
+    ops::{Shl, Shr},
 };
 
 use crate::{
     mem::Memory,
-    util::num::{LowerLong, LowerWord},
+    util::{
+        bitwise::BitIndex,
+        num::{LowerLong, LowerWord},
+    },
 };
 
 pub struct CPU {
@@ -109,6 +112,7 @@ impl CPU {
             0x20 => {
                 // asl Rx,Ry
                 self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                    // u64 is used to capture if there is carry
                     let long_long = (reg_x as u64).shl(reg_y);
                     (long_long.to_lower_long(), long_long > u32::MAX as u64)
                 })
@@ -116,9 +120,31 @@ impl CPU {
             0x21 => {
                 // lsr Rx,Ry
                 self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
-                    let (long_long, _) = (reg_x as u64).overflowing_shr(reg_y);
-                    // Get bit at position reg_y - 1
-                    (long_long.to_lower_long(), (reg_x & (1 << (reg_y - 1)) != 0))
+                    let long = reg_x.shr(reg_y);
+
+                    // Carry is bit at position reg_y - 1
+                    let index = reg_x.bit_at_index(reg_y - 1);
+                    (long, index)
+                })
+            }
+            0x22 => {
+                // rol Rx,Ry
+                self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                    let long = reg_x.shl(reg_y);
+
+                    // Carry is bit at 32 - reg_y
+                    let index = reg_x.bit_at_index(32 - reg_y);
+                    (long, index)
+                })
+            }
+            0x23 => {
+                // ror Rx,Ry
+                self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                    let long = reg_x.shr(reg_y);
+
+                    // Carry is bit at reg_y - 1
+                    let index = reg_x.bit_at_index(reg_y - 1);
+                    (long, index)
                 })
             }
             _ => {

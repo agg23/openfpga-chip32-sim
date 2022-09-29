@@ -4,6 +4,6 @@ architecture chip32.vm
 nop
 
 // Init vector (0x2)
-ld r1,#{value}
-ld r2,#1
+ld r1,#{r1value}
+ld r2,#{r2value}
 {command} {targets}

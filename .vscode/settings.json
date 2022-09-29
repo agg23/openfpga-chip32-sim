@@ -1,5 +1,5 @@
 {
   "rust-analyzer.runnableEnv": {
-    "BASS_PATH": "../bass_chip32-Win64/bass.exe"
+    "BASS_PATH": "../bass_chip32/bass"
   }
 }

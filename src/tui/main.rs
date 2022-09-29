@@ -23,39 +23,14 @@ pub fn render_main<B: Backend>(
         .margin(2)
         .constraints(
             [
+                Constraint::Percentage(80),
                 Constraint::Length(1),
                 Constraint::Length(3),
                 Constraint::Min(1),
-                Constraint::Min(20),
             ]
             .as_ref(),
         )
         .split(f.size());
-
-    let msg = vec![
-        Span::raw("Press "),
-        Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" to stop editing, "),
-        Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" to record the message"),
-    ];
-    let style = Style::default();
-    let mut text = Text::from(Spans::from(msg));
-    text.patch_style(style);
-    let help_message = Paragraph::new(text);
-    f.render_widget(help_message, chunks[0]);
-
-    let input_paragraph = Paragraph::new(input.as_ref())
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().borders(Borders::ALL).title("Input"));
-    f.render_widget(input_paragraph, chunks[1]);
-    // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-    f.set_cursor(
-        // Put cursor past the end of the input text
-        chunks[1].x + input.width() as u16 + 1,
-        // Move one line down, from the border to the input line
-        chunks[1].y + 1,
-    );
 
     // Table
     let pc_row = state.pc.named_row("PC".into());
@@ -77,7 +52,33 @@ pub fn render_main<B: Backend>(
             .chain(reg_rows),
     )
     .header(Row::new([Cell::from("Register"), Cell::from("Value")]))
-    .widths(&[Constraint::Length(10), Constraint::Min(100)]);
+    .widths(&[Constraint::Length(10), Constraint::Min(100)])
+    .block(Block::default().borders(Borders::ALL).title("Registers"));
 
-    f.render_stateful_widget(table, chunks[3], table_state)
+    f.render_stateful_widget(table, chunks[0], table_state);
+
+    // let msg = vec![
+    //     Span::raw("Press "),
+    //     Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+    //     Span::raw(" to stop editing, "),
+    //     Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+    //     Span::raw(" to record the message"),
+    // ];
+    // let style = Style::default();
+    // let mut text = Text::from(Spans::from(msg));
+    // text.patch_style(style);
+    // let help_message = Paragraph::new(text);
+    // f.render_widget(help_message, chunks[0]);
+
+    let input_paragraph = Paragraph::new(input.as_ref())
+        .style(Style::default().fg(Color::Yellow))
+        .block(Block::default().borders(Borders::ALL).title("Input"));
+    f.render_widget(input_paragraph, chunks[2]);
+    // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+    f.set_cursor(
+        // Put cursor past the end of the input text
+        chunks[2].x + input.width() as u16 + 1,
+        // Move one line down, from the border to the input line
+        chunks[2].y + 1,
+    );
 }

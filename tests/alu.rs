@@ -1,6 +1,6 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
-use chip32_sim::{cpu::CPU, util::num::LowerWord};
+use chip32_sim::util::num::LowerWord;
 use util::test_command_without_setup;
 
 mod util;
@@ -54,6 +54,15 @@ fn it_alu_32() {
 }
 
 #[test]
+fn it_alu_double_reg() {
+    test_alu_with_target("asl", "r1,r2", 0xDEADBEEF, 0xBD5B7DDE, false, true);
+    test_alu_with_target("asl", "r1,r2", 0x7EADBEEF, 0xFD5B7DDE, false, false);
+
+    test_alu_with_target("lsr", "r1,r2", 0xDEADBEEF, 0x6F56DF77, false, true);
+    test_alu_with_target("lsr", "r1,r2", 0xDEADBEE0, 0x6F56DF70, false, false);
+}
+
+#[test]
 fn it_alu_zero() {
     test_alu_with_value("and", 0xF0F0F0F0, 0, 0, false, true, false);
 }
@@ -71,14 +80,25 @@ fn test_alu_with_value(
     zero: bool,
     carry: bool,
 ) {
-    let spaceless_command = command.replace(" ", "_");
-
     let target = if bit32 {
         format!("r1,#{immediate:#X}")
     } else {
         let immediate = immediate.to_lower_word();
         format!("r1,#{immediate:#X}")
     };
+
+    test_alu_with_target(command, target.as_str(), value, result, zero, carry);
+}
+
+fn test_alu_with_target(
+    command: &str,
+    target: &str,
+    value: u32,
+    result: u32,
+    zero: bool,
+    carry: bool,
+) {
+    let spaceless_command = command.replace(" ", "_");
 
     let value = format!("{value:#X}");
 
@@ -87,10 +107,10 @@ fn test_alu_with_value(
         &format!("tests/bin/{spaceless_command}.bin"),
         HashMap::from([
             ("command", command),
-            ("targets", target.as_str()),
+            ("targets", target),
             ("value", value.as_str()),
         ]),
-        2,
+        3,
         |cpu| {
             assert_eq!(cpu.zero, zero, "Zero");
             assert_eq!(cpu.carry, carry, "Carry");

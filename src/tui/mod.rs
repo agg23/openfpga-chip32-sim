@@ -24,13 +24,13 @@ pub fn run_app<B: Backend>(
         terminal.draw(|f| ui(f, &mut app, &state))?;
 
         if let Event::Key(key) = event::read()? {
-            if (key.code == KeyCode::Esc) {
+            if key.code == KeyCode::Esc {
                 // Go to input
-                app.displayMode = DisplayMode::Input(TableState::default());
+                app.display_mode = DisplayMode::Input(TableState::default());
                 app.input = String::new();
             }
 
-            match app.displayMode {
+            match app.display_mode {
                 DisplayMode::Input(_) => match key.code {
                     KeyCode::Enter => {
                         match app.input.as_str() {
@@ -38,7 +38,7 @@ pub fn run_app<B: Backend>(
                                 state.step();
                             }
                             "m" => {
-                                app.displayMode = DisplayMode::Memory {
+                                app.display_mode = DisplayMode::Memory {
                                     address: 0,
                                     state: TableState::default(),
                                 };
@@ -65,7 +65,7 @@ pub fn run_app<B: Backend>(
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU) {
-    match app.displayMode {
+    match app.display_mode {
         DisplayMode::Input(ref mut table_state) => {
             render_main(f, app.input.clone(), table_state, state)
         }

@@ -11,8 +11,8 @@ use crate::{cpu::CPU, tui::run_app};
 
 mod tui;
 
-pub mod cpu;
-pub mod mem;
+pub(crate) mod cpu;
+pub(crate) mod mem;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]

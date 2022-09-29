@@ -9,14 +9,14 @@ pub enum DisplayMode {
 pub struct App {
     /// Current value of the input box
     pub input: String,
-    pub displayMode: DisplayMode,
+    pub display_mode: DisplayMode,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             input: String::new(),
-            displayMode: DisplayMode::Input(TableState::default()),
+            display_mode: DisplayMode::Input(TableState::default()),
         }
     }
 }

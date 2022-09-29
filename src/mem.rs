@@ -48,7 +48,7 @@ impl Memory {
     pub fn mem_write_byte(&mut self, address: u16, byte: u8) {
         let address = address as usize;
 
-        if (address < self.rom_size) {
+        if address < self.rom_size {
             println!("ERROR: Clobbering ROM data");
         }
 
@@ -58,7 +58,7 @@ impl Memory {
     pub fn mem_write_word(&mut self, address: u16, word: u16) {
         let address = address as usize;
 
-        if (address < self.rom_size) {
+        if address < self.rom_size {
             println!("ERROR: Clobbering ROM data");
         }
 
@@ -71,7 +71,7 @@ impl Memory {
     pub fn mem_write_long(&mut self, address: u16, word: u32) {
         let address = address as usize;
 
-        if (address < self.rom_size) {
+        if address < self.rom_size {
             println!("ERROR: Clobbering ROM data");
         }
 

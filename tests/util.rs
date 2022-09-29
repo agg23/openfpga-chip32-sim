@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    env,
-    fs::{self, OpenOptions},
-    process::{Command, ExitStatus},
-};
+use std::{collections::HashMap, env, fs, process::Command};
 
 use chip32_sim::cpu::CPU;
 use regex::Regex;

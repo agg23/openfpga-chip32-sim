@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "chip32_sim"
-path = "src/main.rs"
+path = "src/lib.rs"
 
 [[bin]]
 name = "chip32-sim-cli"

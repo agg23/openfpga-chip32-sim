@@ -1,7 +1,6 @@
 use std::{
     fs::File,
     io::{self, Read},
-    path::Path,
 };
 
 use crate::mem::Memory;

@@ -1,37 +1,19 @@
 use ::tui::Frame;
 use tui::{
     backend::Backend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
+    layout::{Constraint, Rect},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
-use unicode_width::UnicodeWidthStr;
 
 use crate::cpu::CPU;
 use crate::tui::util::NamedRow;
 
 pub fn render_main<B: Backend>(
     f: &mut Frame<B>,
-    input: String,
+    chunks: Vec<Rect>,
     table_state: &mut TableState,
     state: &CPU,
 ) {
-    // Input
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints(
-            [
-                Constraint::Percentage(80),
-                Constraint::Length(1),
-                Constraint::Length(3),
-                Constraint::Min(1),
-            ]
-            .as_ref(),
-        )
-        .split(f.size());
-
     // Table
     let pc_row = state.pc.named_row("PC".into());
     let sp_row = state.sp.named_row("SP".into());
@@ -56,29 +38,4 @@ pub fn render_main<B: Backend>(
     .block(Block::default().borders(Borders::ALL).title("Registers"));
 
     f.render_stateful_widget(table, chunks[0], table_state);
-
-    // let msg = vec![
-    //     Span::raw("Press "),
-    //     Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-    //     Span::raw(" to stop editing, "),
-    //     Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-    //     Span::raw(" to record the message"),
-    // ];
-    // let style = Style::default();
-    // let mut text = Text::from(Spans::from(msg));
-    // text.patch_style(style);
-    // let help_message = Paragraph::new(text);
-    // f.render_widget(help_message, chunks[0]);
-
-    let input_paragraph = Paragraph::new(input.as_ref())
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().borders(Borders::ALL).title("Input"));
-    f.render_widget(input_paragraph, chunks[2]);
-    // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-    f.set_cursor(
-        // Put cursor past the end of the input text
-        chunks[2].x + input.width() as u16 + 1,
-        // Move one line down, from the border to the input line
-        chunks[2].y + 1,
-    );
 }

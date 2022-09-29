@@ -1,6 +1,13 @@
 use crossterm::event::{self, Event, KeyCode};
 use std::io;
-use tui::{backend::Backend, widgets::TableState, Frame, Terminal};
+use tui::{
+    backend::Backend,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
+    widgets::{Block, Borders, Paragraph, TableState},
+    Frame, Terminal,
+};
+use unicode_width::UnicodeWidthStr;
 
 use crate::cpu::CPU;
 
@@ -30,48 +37,71 @@ pub fn run_app<B: Backend>(
                 app.input = String::new();
             }
 
-            match app.display_mode {
-                DisplayMode::Input(_) => match key.code {
-                    KeyCode::Enter => {
-                        match app.input.as_str() {
-                            "s" => {
-                                state.step();
-                            }
-                            "m" => {
-                                app.display_mode = DisplayMode::Memory {
-                                    address: 0,
-                                    state: TableState::default(),
-                                };
-                            }
-                            "q" | "quit" => {
-                                // Quit
-                                return Ok(());
-                            }
-                            _ => {}
+            match key.code {
+                KeyCode::Enter => {
+                    match app.input.as_str() {
+                        "s" => {
+                            state.step();
                         }
+                        "m" => {
+                            app.display_mode = DisplayMode::Memory {
+                                address: 0,
+                                state: TableState::default(),
+                            };
+                        }
+                        "q" | "quit" => {
+                            // Quit
+                            return Ok(());
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char(c) => {
-                        app.input.push(c);
-                    }
-                    KeyCode::Backspace => {
-                        app.input.pop();
-                    }
-                    _ => {}
-                },
-                DisplayMode::Memory { .. } => {}
+                }
+                KeyCode::Char(c) => {
+                    app.input.push(c);
+                }
+                KeyCode::Backspace => {
+                    app.input.pop();
+                }
+                _ => {}
             }
         }
     }
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints(
+            [
+                Constraint::Percentage(80),
+                Constraint::Length(1),
+                Constraint::Length(3),
+                Constraint::Min(1),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
     match app.display_mode {
         DisplayMode::Input(ref mut table_state) => {
-            render_main(f, app.input.clone(), table_state, state)
+            render_main(f, chunks.clone(), table_state, state)
         }
         DisplayMode::Memory {
             address,
             state: ref mut table_state,
-        } => render_memory(f, address, table_state, state),
+        } => render_memory(f, chunks.clone(), address, table_state, state),
     }
+
+    let input_paragraph = Paragraph::new(app.input.as_ref())
+        .style(Style::default().fg(Color::Yellow))
+        .block(Block::default().borders(Borders::ALL).title("Input"));
+    f.render_widget(input_paragraph, chunks[2]);
+    // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+    f.set_cursor(
+        // Put cursor past the end of the input text
+        chunks[2].x + app.input.width() as u16 + 1,
+        // Move one line down, from the border to the input line
+        chunks[2].y + 1,
+    );
 }

@@ -1,7 +1,7 @@
 use ::tui::Frame;
 use tui::{
     backend::Backend,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Rect},
     widgets::{Cell, Row, Table, TableState},
 };
 
@@ -9,15 +9,11 @@ use crate::cpu::CPU;
 
 pub fn render_memory<B: Backend>(
     f: &mut Frame<B>,
+    chunks: Vec<Rect>,
     address: u16,
     table_state: &mut TableState,
     state: &CPU,
 ) {
-    let rects = Layout::default()
-        .constraints([Constraint::Percentage(100)].as_ref())
-        .margin(5)
-        .split(f.size());
-
     let rows = (0..10)
         .map(|i| {
             let address = address + i * 4;
@@ -35,5 +31,5 @@ pub fn render_memory<B: Backend>(
         .header(Row::new([Cell::from("Address"), Cell::from("Data")]))
         .widths(&[Constraint::Length(10), Constraint::Min(100)]);
 
-    f.render_stateful_widget(table, rects[0], table_state)
+    f.render_stateful_widget(table, chunks[0], table_state)
 }

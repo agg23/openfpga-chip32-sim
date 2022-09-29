@@ -2,7 +2,7 @@ use ::tui::Frame;
 use tui::{
     backend::Backend,
     layout::{Constraint, Rect},
-    widgets::{Cell, Row, Table, TableState},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 
 use crate::cpu::CPU;
@@ -14,22 +14,40 @@ pub fn render_memory<B: Backend>(
     table_state: &mut TableState,
     state: &CPU,
 ) {
-    let rows = (0..10)
-        .map(|i| {
-            let address = address + i * 4;
+    let header = (0..17).map(|i| {
+        if i == 0 {
+            Cell::from("")
+        } else {
+            let i = i - 1;
+            Cell::from(format!("{i:02X}"))
+        }
+    });
 
-            (address, state.ram.mem_read_long(address))
-        })
-        .map(|(address, data)| {
-            Row::new([
-                Cell::from(format!("{address:08X}")),
-                Cell::from(format!("{data:08X}")),
-            ])
+    let widths = (0..17)
+        .map(|i| Constraint::Length(if i == 0 { 8 } else { 2 }))
+        .collect::<Vec<Constraint>>();
+
+    let rows = (0..16).map(|i| {
+        let address = address + i * 16;
+
+        let columns = (0..17).map(|j| {
+            if j == 0 {
+                Cell::from(format!("{address:08X}"))
+            } else {
+                let address = address + j - 1;
+                let data = state.ram.mem_read_byte(address);
+
+                Cell::from(format!("{data:02X}"))
+            }
         });
 
+        Row::new(columns)
+    });
+
     let table = Table::new(rows)
-        .header(Row::new([Cell::from("Address"), Cell::from("Data")]))
-        .widths(&[Constraint::Length(10), Constraint::Min(100)]);
+        .header(Row::new(header))
+        .widths(&widths)
+        .block(Block::default().borders(Borders::ALL).title("Memory"));
 
     f.render_stateful_widget(table, chunks[0], table_state)
 }

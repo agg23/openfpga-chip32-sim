@@ -48,6 +48,8 @@ pub fn run_app<B: Backend>(
                                 address: 0,
                                 state: TableState::default(),
                             };
+
+                            app.input = String::new();
                         }
                         "q" | "quit" => {
                             // Quit
@@ -61,6 +63,29 @@ pub fn run_app<B: Backend>(
                 }
                 KeyCode::Backspace => {
                     app.input.pop();
+                }
+                KeyCode::Up => {
+                    if let DisplayMode::Memory {
+                        ref mut address,
+                        state: _,
+                    } = app.display_mode
+                    {
+                        if *address > 16 {
+                            *address -= 16;
+                        }
+                    }
+                }
+                KeyCode::Down => {
+                    if let DisplayMode::Memory {
+                        ref mut address,
+                        state: _,
+                    } = app.display_mode
+                    {
+                        if *address < 8 * 1024 - (16 * 16) {
+                            // Don't scroll past last page
+                            *address += 16;
+                        }
+                    }
                 }
                 _ => {}
             }

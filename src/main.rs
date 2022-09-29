@@ -7,12 +7,12 @@ use crossterm::{
 };
 use std::io;
 
-use crate::{cpu::State, tui::run_app};
+use crate::{cpu::CPU, tui::run_app};
 
 mod tui;
 
-mod cpu;
-pub(crate) mod mem;
+pub mod cpu;
+pub mod mem;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -25,7 +25,7 @@ struct Args {
 fn main() -> Result<(), io::Error> {
     let args = Args::parse();
 
-    let state = State::load_file(args.bin)?;
+    let state = CPU::load_file(&args.bin)?;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

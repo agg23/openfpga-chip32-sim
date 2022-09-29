@@ -2,7 +2,7 @@ use crossterm::event::{self, Event, KeyCode};
 use std::io;
 use tui::{backend::Backend, widgets::TableState, Frame, Terminal};
 
-use crate::cpu::State;
+use crate::cpu::CPU;
 
 use self::{
     main::render_main,
@@ -18,7 +18,7 @@ pub(crate) mod util;
 pub fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
-    mut state: State,
+    mut state: CPU,
 ) -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, &mut app, &state))?;
@@ -64,7 +64,7 @@ pub fn run_app<B: Backend>(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &State) {
+fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU) {
     match app.displayMode {
         DisplayMode::Input(ref mut table_state) => {
             render_main(f, app.input.clone(), table_state, state)

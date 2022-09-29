@@ -5,13 +5,13 @@ use tui::{
     widgets::{Cell, Row, Table, TableState},
 };
 
-use crate::cpu::State;
+use crate::cpu::CPU;
 
 pub fn render_memory<B: Backend>(
     f: &mut Frame<B>,
     address: u16,
     table_state: &mut TableState,
-    state: &State,
+    state: &CPU,
 ) {
     let rects = Layout::default()
         .constraints([Constraint::Percentage(100)].as_ref())

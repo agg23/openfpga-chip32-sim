@@ -39,4 +39,30 @@ impl Memory {
                 .expect("Slice wasn't of length 4"),
         )
     }
+
+    pub fn mem_write_byte(&mut self, address: u16, byte: u8) {
+        let address = address as usize;
+
+        self.ram[address] = byte;
+    }
+
+    pub fn mem_write_word(&mut self, address: u16, word: u16) {
+        let address = address as usize;
+
+        let [lower, upper] = word.to_le_bytes();
+
+        self.ram[address] = lower;
+        self.ram[address + 1] = upper;
+    }
+
+    pub fn mem_write_long(&mut self, address: u16, word: u32) {
+        let address = address as usize;
+
+        let [lower_a, upper_a, lower_b, upper_b] = word.to_le_bytes();
+
+        self.ram[address] = lower_a;
+        self.ram[address + 1] = upper_a;
+        self.ram[address + 2] = lower_b;
+        self.ram[address + 3] = upper_b;
+    }
 }

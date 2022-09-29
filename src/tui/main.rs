@@ -8,7 +8,7 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-use crate::cpu::State;
+use crate::cpu::CPU;
 use crate::tui::util::NamedRow;
 
 use super::modes::App;
@@ -17,7 +17,7 @@ pub fn render_main<B: Backend>(
     f: &mut Frame<B>,
     input: String,
     table_state: &mut TableState,
-    state: &State,
+    state: &CPU,
 ) {
     // Input
     let chunks = Layout::default()

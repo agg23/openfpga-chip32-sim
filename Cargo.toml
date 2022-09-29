@@ -3,10 +3,17 @@ name = "chip32-sim"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "chip32_sim"
+path = "src/main.rs"
+
+[[bin]]
+name = "chip32-sim-cli"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "3.2.22", features = ["derive"] }
 crossterm = "0.25.0"
+regex = "1.6.0"
 tui = "0.19.0"
 unicode-width = "0.1.10"

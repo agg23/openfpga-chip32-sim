@@ -35,95 +35,102 @@ impl CPU {
 
         let alu_32_immed_bit = (inst_prefix_byte & 0x10) != 0;
         let alu_reg_bit = (inst_prefix_byte & 0x20) != 0;
+        let load_immed_bit = (inst_prefix_byte & 0x30) == 0;
 
         match inst_prefix_byte {
-            0x0 => {}                                                              // NOP
-            0x02 => self.basic_load_inst(inst_suffix_byte, false, DataSize::Byte), // ld.b Rx,(nnnn)
-            0x03 => self.basic_load_inst(inst_suffix_byte, true, DataSize::Byte),  // ld.b (nnnn),Rx
-            0x04 => self.basic_load_inst(inst_suffix_byte, false, DataSize::Word), // ld.w Rx,(nnnn)
-            0x05 => self.basic_load_inst(inst_suffix_byte, true, DataSize::Word),  // ld.w (nnnn),Rx
-            0x06 => self.basic_load_inst(inst_suffix_byte, false, DataSize::Long), // ld.l Rx,(nnnn)
-            0x07 => self.basic_load_inst(inst_suffix_byte, true, DataSize::Long),  // ld.l (nnnn),Rx
+            0x0 => {} // NOP
+            0x02 | 0x32 => {
+                // ld.b Rx,(nnnn) | ld.b Rx,(Ry)
+                self.load_mem_inst(inst_suffix_byte, false, load_immed_bit, DataSize::Byte)
+            }
+            0x03 | 0x33 => {
+                // ld.b (nnnn),Rx | ld.b (Ry),Rx
+                self.load_mem_inst(inst_suffix_byte, true, load_immed_bit, DataSize::Byte)
+            }
+            0x04 | 0x34 => {
+                // ld.w Rx,(nnnn) | ld.w Rx,(Ry)
+                self.load_mem_inst(inst_suffix_byte, false, load_immed_bit, DataSize::Word)
+            }
+            0x05 | 0x35 => {
+                // ld.w (nnnn),Rx | ld.w (Ry),Rx
+                self.load_mem_inst(inst_suffix_byte, true, load_immed_bit, DataSize::Word)
+            }
+            0x06 | 0x36 => {
+                // ld.l Rx,(nnnn) | ld.l Rx,(Ry)
+                self.load_mem_inst(inst_suffix_byte, false, load_immed_bit, DataSize::Long)
+            }
+            0x07 | 0x37 => {
+                // ld.l (nnnn),Rx | ld.l (Ry),Rx
+                self.load_mem_inst(inst_suffix_byte, true, load_immed_bit, DataSize::Long)
+            }
             0x08 | 0x18 | 0x28 => {
+                // ld Rx,#16/32 | ld Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     true,
-                    |_, immediate| {
-                        // ld Rx,#16
-                        (immediate, false)
-                    },
+                    |_, immediate| (immediate, false),
                 )
             }
             0x09 | 0x19 | 0x29 => {
+                // and Rx,#16/32 | and Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     true,
-                    |reg, immediate| {
-                        // and Rx,#16
-                        (reg & immediate, false)
-                    },
+                    |reg, immediate| (reg & immediate, false),
                 )
             }
             0x0A | 0x1A | 0x2A => {
+                // or Rx,#16/32 | or Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     true,
-                    |reg, immediate| {
-                        // or Rx,#16
-                        (reg | immediate, false)
-                    },
+                    |reg, immediate| (reg | immediate, false),
                 )
             }
             0x0B | 0x1B | 0x2B => {
+                // xor Rx,#16/32 | xor Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     true,
-                    |reg, immediate| {
-                        // xor Rx,#16
-                        (reg ^ immediate, false)
-                    },
+                    |reg, immediate| (reg ^ immediate, false),
                 )
             }
             0x0C | 0x1C | 0x2C => {
+                // add Rx,#16/32 | add Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     true,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     true,
-                    |reg, immediate| {
-                        // add Rx,#16
-                        reg.overflowing_add(immediate)
-                    },
+                    |reg, immediate| reg.overflowing_add(immediate),
                 )
             }
             0x0D | 0x1D | 0x2D => {
+                // sub Rx,#16/32 | sub Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     true,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     true,
-                    |reg, immediate| {
-                        // sub Rx,#16
-                        reg.overflowing_sub(immediate)
-                    },
+                    |reg, immediate| reg.overflowing_sub(immediate),
                 )
             }
             0x0E | 0x1E | 0x2E => {
-                // cmp Rx,#16
+                // cmp Rx,#16/32 | cmp Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     false,
@@ -134,7 +141,7 @@ impl CPU {
                 )
             }
             0x0F | 0x1F | 0x2F => {
-                // bit Rx,#16
+                // bit Rx,#16/32 | bit Rx,Ry
                 self.alu_immediate_or_reg(
                     inst_suffix_byte,
                     false,
@@ -240,17 +247,30 @@ impl CPU {
     ///
     /// A load/store instruction. Can be `b`, `w`, or `l`
     ///
-    fn basic_load_inst(&mut self, inst_suffix_byte: u8, write: bool, size: DataSize) {
-        let reg = inst_suffix_byte;
-        let address = self.pc_word();
+    /// `second_value_is_immed` considers the Y value to be an immediate word, otherwise it's a register
+    fn load_mem_inst(
+        &mut self,
+        inst_suffix_byte: u8,
+        write_mem: bool,
+        second_value_is_immed: bool,
+        size: DataSize,
+    ) {
+        let reg_x_index = inst_suffix_byte & 0xF;
+        let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
 
-        if write {
-            let value = self.get_reg(reg);
+        let reg_x = self.get_reg(reg_x_index);
 
+        let address = if second_value_is_immed {
+            self.pc_word()
+        } else {
+            self.get_reg(reg_y_index).to_lower_word()
+        };
+
+        if write_mem {
             match size {
-                DataSize::Byte => self.ram.mem_write_byte(address, value.to_le_bytes()[0]),
-                DataSize::Word => self.ram.mem_write_word(address, value.to_lower_word()),
-                DataSize::Long => self.ram.mem_write_long(address, value),
+                DataSize::Byte => self.ram.mem_write_byte(address, reg_x.to_le_bytes()[0]),
+                DataSize::Word => self.ram.mem_write_word(address, reg_x.to_lower_word()),
+                DataSize::Long => self.ram.mem_write_long(address, reg_x),
             }
         } else {
             let value = match size {
@@ -259,10 +279,39 @@ impl CPU {
                 DataSize::Long => self.ram.mem_read_long(address),
             };
 
-            self.set_reg(reg, value);
+            self.set_reg(reg_x_index, value);
             self.set_zero(value);
         }
     }
+
+    // fn load_mem_inst(&mut self, inst_suffix_byte: u8, write_mem: bool, size: DataSize) {
+    //     let reg_x_index = inst_suffix_byte & 0xF;
+    //     let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+
+    //     let reg_x = self.get_reg(reg_x_index);
+
+    //     if write_mem {
+    //         // Write to address in Ry with data from Rx
+    //         let address = self.get_reg(reg_y_index).to_lower_word();
+
+    //         match size {
+    //             DataSize::Byte => self.ram.mem_write_byte(address, reg_x.to_le_bytes()[0]),
+    //             DataSize::Word => self.ram.mem_write_word(address, reg_x.to_lower_word()),
+    //             DataSize::Long => self.ram.mem_write_long(address, reg_x),
+    //         }
+    //     } else {
+    //         let address = reg_x.to_lower_word();
+    //         // Read from address in Ry and store into Rx
+    //         let value = match size {
+    //             DataSize::Byte => self.ram.mem_read_byte(address).into(),
+    //             DataSize::Word => self.ram.mem_read_word(address).into(),
+    //             DataSize::Long => self.ram.mem_read_long(address),
+    //         };
+
+    //         self.set_reg(reg_x_index, value);
+    //         self.set_zero(value);
+    //     }
+    // }
 
     ///
     /// ALU load/logic with immediate or register second argument

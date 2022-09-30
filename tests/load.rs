@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, env};
 
 use util::test_command_without_setup;
 
@@ -6,78 +6,45 @@ mod util;
 
 #[test]
 fn it_loads_read() {
-    test_command_without_setup(
-        "tests/asm/load.asm",
-        "tests/bin/load_read_b.bin",
-        HashMap::from([("command", "ld.b"), ("targets", "r1,(data)")]),
-        2,
-        |cpu| {
-            assert_eq!(cpu.zero, false);
-            assert_eq!(cpu.carry, false);
-            assert_eq!(cpu.work_regs[1], 0xEF);
-        },
-    );
-
-    test_command_without_setup(
-        "tests/asm/load.asm",
-        "tests/bin/load_read_w.bin",
-        HashMap::from([("command", "ld.w"), ("targets", "r1,(data)")]),
-        2,
-        |cpu| {
-            assert_eq!(cpu.zero, false);
-            assert_eq!(cpu.carry, false);
-            assert_eq!(cpu.work_regs[1], 0xBEEF);
-        },
-    );
-
-    test_command_without_setup(
-        "tests/asm/load.asm",
-        "tests/bin/load_read_l.bin",
-        HashMap::from([("command", "ld.l"), ("targets", "r1,(data)")]),
-        2,
-        |cpu| {
-            assert_eq!(cpu.zero, false);
-            assert_eq!(cpu.carry, false);
-            assert_eq!(cpu.work_regs[1], 0xDEADBEEF);
-        },
-    )
+    test_load("ld.b", "r1,(data)", "data", 0xEF, false);
+    test_load("ld.w", "r1,(data)", "data", 0xBEEF, false);
+    test_load("ld.l", "r1,(data)", "data", 0xDEADBEEF, false)
 }
 
 #[test]
 fn it_loads_write() {
-    test_command_without_setup(
-        "tests/asm/load.asm",
-        "tests/bin/load_write_b.bin",
-        HashMap::from([("command", "ld.b"), ("targets", "(0x10),r1")]),
-        2,
-        |cpu| {
-            assert_eq!(cpu.zero, false);
-            assert_eq!(cpu.carry, false);
-            assert_eq!(cpu.ram.mem_read_byte(0x10), 0xAD);
-        },
-    );
+    test_load("ld.b", "(0x20),r1", "data", 0xAD, true);
+    test_load("ld.w", "(0x20),r1", "data", 0xDEAD, true);
+    test_load("ld.l", "(0x20),r1", "data", 0xCADEDEAD, true);
+}
+
+#[test]
+fn it_loads_double_reg() {
+    test_load("ld.b", "r1,(r2)", "data", 0xEF, false);
+    test_load("ld.w", "r1,(r2)", "data", 0xBEEF, false);
+    test_load("ld.l", "r1,(r2)", "data", 0xDEADBEEF, false);
+
+    test_load("ld.b", "(r2),r1", "0x20", 0xAD, true);
+    test_load("ld.w", "(r2),r1", "0x20", 0xDEAD, true);
+    test_load("ld.l", "(r2),r1", "0x20", 0xCADEDEAD, true);
+}
+
+fn test_load(command: &str, target: &str, data: &str, result: u32, mem_result: bool) {
+    let spaceless_command = command.replace(" ", "_");
 
     test_command_without_setup(
         "tests/asm/load.asm",
-        "tests/bin/load_write_w.bin",
-        HashMap::from([("command", "ld.w"), ("targets", "(0x10),r1")]),
-        2,
+        &format!("tests/bin/{spaceless_command}.bin"),
+        HashMap::from([("command", command), ("targets", target), ("data", data)]),
+        3,
         |cpu| {
             assert_eq!(cpu.zero, false);
             assert_eq!(cpu.carry, false);
-            assert_eq!(cpu.ram.mem_read_word(0x10), 0xDEAD);
-        },
-    );
-
-    test_command_without_setup(
-        "tests/asm/load.asm",
-        "tests/bin/load_write_l.bin",
-        HashMap::from([("command", "ld.l"), ("targets", "(0x10),r1")]),
-        2,
-        |cpu| {
-            assert_eq!(cpu.zero, false);
-            assert_eq!(cpu.carry, false);
-            assert_eq!(cpu.ram.mem_read_long(0x10), 0xCADEDEAD);
+            if (mem_result) {
+                assert_eq!(cpu.ram.mem_read_long(0x20), result);
+            } else {
+                assert_eq!(cpu.work_regs[1], result);
+            }
         },
     );
 }

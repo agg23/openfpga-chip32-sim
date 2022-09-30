@@ -20,6 +20,8 @@ pub struct CPU {
     pub zero: bool,
 
     pub ram: Memory,
+
+    pub logs: Vec<String>,
 }
 
 enum DataSize {
@@ -245,7 +247,6 @@ impl CPU {
             }
             0x3E => {
                 // div Rx,Ry
-                // Set
                 let reg_x_index = inst_suffix_byte & 0xF;
                 let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
 
@@ -265,6 +266,75 @@ impl CPU {
                     self.set_zero(quotient);
                     self.set_carry(remainder == 0);
                 }
+            }
+            0x40 => {
+                // printf Rx
+                let reg_x_index = inst_suffix_byte & 0xF;
+                let address = self.get_reg(reg_x_index).to_lower_word();
+
+                let mut string_bytes = Vec::new();
+
+                let mut count = 1;
+                let mut byte = self.ram.mem_read_byte(address);
+                // Max at 255 chars, and stop at nullchar
+                while count < 256 && byte != 0 {
+                    string_bytes.push(byte);
+
+                    byte = self.ram.mem_read_byte(address + count);
+                    count += 1;
+                }
+
+                let string = String::from_utf8(string_bytes);
+
+                let string = string.map_or(
+                    format!("Error: Could not parse printed string at {address:#X}"),
+                    |s| s,
+                );
+
+                self.logs.push(string);
+            }
+            0x41 => {
+                // hex.* Rx | dec.* Rx
+                let reg_x_index = inst_suffix_byte & 0xF;
+                let identifier = (inst_suffix_byte >> 4) & 0xF;
+
+                let reg_x = self.get_reg(reg_x_index);
+
+                let string = match identifier {
+                    // hex
+                    0 => {
+                        let byte = reg_x.to_le_bytes()[0];
+                        format!("{byte:02X}")
+                    }
+                    1 => {
+                        let word = reg_x.to_lower_word();
+                        format!("{word:04X}")
+                    }
+                    2 => {
+                        format!("{reg_x:08X}")
+                    }
+                    // dec
+                    3 => {
+                        let byte = reg_x.to_le_bytes()[0];
+                        format!("{byte:02}")
+                    }
+                    4 => {
+                        let word = reg_x.to_lower_word();
+                        format!("{word:04}")
+                    }
+                    5 => {
+                        format!("{reg_x:08}")
+                    }
+                    _ => panic!("Unexpected identifier {identifier} in 0x41"),
+                };
+
+                let string = if identifier < 3 {
+                    format!("Hex: 0x{string}")
+                } else {
+                    format!("Dec: {string}")
+                };
+
+                self.logs.push(string);
             }
             _ => {
                 // Do nothing
@@ -472,6 +542,7 @@ impl CPU {
             carry: false,
             zero: false,
             ram: Memory::from_bytes(buffer),
+            logs: Vec::new(),
         })
     }
 }

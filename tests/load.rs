@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use util::test_command_without_setup;
 
@@ -40,7 +40,7 @@ fn test_load(command: &str, target: &str, data: &str, result: u32, mem_result: b
         |cpu| {
             assert_eq!(cpu.zero, false);
             assert_eq!(cpu.carry, false);
-            if (mem_result) {
+            if mem_result {
                 assert_eq!(cpu.ram.mem_read_long(0x20), result);
             } else {
                 assert_eq!(cpu.work_regs[1], result);

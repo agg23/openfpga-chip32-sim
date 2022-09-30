@@ -39,6 +39,27 @@ fn it_stack_error() {
     test_stack("ret", "c", 0, 0x20, false, true, 0, 0);
 }
 
+#[test]
+fn it_jump() {
+    test_stack("jp", "0x10", 0, 0, false, false, 0x10, 0);
+
+    // NZ
+    test_stack("jp nz,", "0x10", 0, 0, false, false, 0x10, 0);
+    test_stack("jp nz,", "0x10", 0, 0, true, false, 0x4, 0);
+
+    // Z
+    test_stack("jp z,", "0x10", 0, 0, true, false, 0x10, 0);
+    test_stack("jp z,", "0x10", 0, 0, false, false, 0x4, 0);
+
+    // NC
+    test_stack("jp nc,", "0x10", 0, 0, false, false, 0x10, 0);
+    test_stack("jp nc,", "0x10", 0, 0, false, true, 0x4, 0);
+
+    // C
+    test_stack("jp c,", "0x10", 0, 0, false, true, 0x10, 0);
+    test_stack("jp c,", "0x10", 0, 0, false, false, 0x4, 0);
+}
+
 fn test_stack(
     command: &str,
     target: &str,
@@ -52,7 +73,7 @@ fn test_stack(
     let spaceless_command = command.replace(" ", "_");
 
     test_command(
-        "tests/asm/stack.asm",
+        "tests/asm/stack_jump.asm",
         &format!("tests/bin/{spaceless_command}.bin"),
         HashMap::from([("command", command), ("targets", target)]),
         1,

@@ -56,6 +56,8 @@ impl CPU {
         let inst_word = self.pc_word();
         let [inst_prefix_byte, inst_suffix_byte] = inst_word.to_be_bytes();
 
+        let inst_prefix_upper_nibble = (inst_prefix_byte >> 4) & 0xF;
+
         let alu_32_immed_bit = (inst_prefix_byte & 0x10) != 0;
         let alu_reg_bit = (inst_prefix_byte & 0x20) != 0;
         let load_immed_bit = (inst_prefix_byte & 0x30) == 0;
@@ -415,8 +417,24 @@ impl CPU {
                 };
             }
             _ => {
-                // Do nothing
-                todo!("Unimplemented {inst_prefix_byte:#X}")
+                match inst_prefix_upper_nibble {
+                    0x6..=0xA => {
+                        self.jump_inst(inst_prefix_byte, inst_suffix_byte, |zero, carry| {
+                            match inst_prefix_upper_nibble {
+                                0x6 => true,   // jp n
+                                0x7 => !zero,  // jp nz
+                                0x8 => zero,   // jp z
+                                0x9 => !carry, // jp nc
+                                0xA => carry,  // jp c
+                                _ => unreachable!(),
+                            }
+                        })
+                    }
+                    _ => {
+                        // Do nothing
+                        todo!("Unimplemented {inst_prefix_byte:#X}")
+                    }
+                }
             }
         }
     }
@@ -528,6 +546,9 @@ impl CPU {
         self.set_zero(value);
     }
 
+    ///
+    /// A return instruction. The return is performed if the conditional is true
+    ///
     fn return_inst<T: Fn(bool, bool) -> bool>(&mut self, conditional: T) {
         if conditional(self.zero, self.carry) {
             // Should return
@@ -542,6 +563,22 @@ impl CPU {
             let pointed = self.stack[self.sp].to_lower_word() & 0x1FFF;
 
             self.pc = pointed;
+        }
+    }
+
+    fn jump_inst<T: Fn(bool, bool) -> bool>(
+        &mut self,
+        inst_prefix_byte: u8,
+        inst_suffix_byte: u8,
+        conditional: T,
+    ) {
+        if conditional(self.zero, self.carry) {
+            // Should jump
+            let inst_prefix_byte = inst_prefix_byte & 0xF;
+            let highest_nibble = ((inst_prefix_byte as u16) << 4) & 0xF00;
+
+            let address = highest_nibble | (inst_suffix_byte as u16);
+            self.pc = address * 2;
         }
     }
 

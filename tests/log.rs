@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use util::test_command_without_setup;
 
@@ -6,7 +6,6 @@ mod util;
 
 #[test]
 fn it_prints() {
-    env::set_var("BASS_PATH", "../bass_chip32/bass");
     test_log("printf", "Hello world", "data", "Hello world");
 
     let long_string =

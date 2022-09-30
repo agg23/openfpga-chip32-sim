@@ -14,12 +14,17 @@ use crate::{
 
 pub struct CPU {
     pub pc: u16,
-    pub sp: u16,
+    /// The stack pointer
+    ///
+    /// When None, there are no values on the stack
+    pub sp: usize,
     pub work_regs: [u32; 16],
     pub carry: bool,
     pub zero: bool,
 
     pub ram: Memory,
+    // TODO: It is unclear if this should live in memory or separately
+    pub stack: [u32; 32],
 
     pub logs: Vec<String>,
 }
@@ -67,7 +72,7 @@ impl CPU {
             }
             0x08 | 0x18 | 0x28 => {
                 // ld Rx,#16/32 | ld Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -78,7 +83,7 @@ impl CPU {
             }
             0x09 | 0x19 | 0x29 => {
                 // and Rx,#16/32 | and Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -89,7 +94,7 @@ impl CPU {
             }
             0x0A | 0x1A | 0x2A => {
                 // or Rx,#16/32 | or Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -100,7 +105,7 @@ impl CPU {
             }
             0x0B | 0x1B | 0x2B => {
                 // xor Rx,#16/32 | xor Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -111,7 +116,7 @@ impl CPU {
             }
             0x0C | 0x1C | 0x2C => {
                 // add Rx,#16/32 | add Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     true,
                     alu_reg_bit,
@@ -122,7 +127,7 @@ impl CPU {
             }
             0x0D | 0x1D | 0x2D => {
                 // sub Rx,#16/32 | sub Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     true,
                     alu_reg_bit,
@@ -133,7 +138,7 @@ impl CPU {
             }
             0x0E | 0x1E | 0x2E => {
                 // cmp Rx,#16/32 | cmp Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -144,7 +149,7 @@ impl CPU {
             }
             0x0F | 0x1F | 0x2F => {
                 // bit Rx,#16/32 | bit Rx,Ry
-                self.alu_immediate_or_reg(
+                self.alu_immediate_or_reg_inst(
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -157,7 +162,7 @@ impl CPU {
             0x11 => todo!("CRC"),
             0x20 => {
                 // asl Rx,Ry
-                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     // u64 is used to capture if there is carry
                     let long_long = (reg_x as u64).shl(reg_y);
                     (long_long.to_lower_long(), long_long > u32::MAX as u64)
@@ -165,7 +170,7 @@ impl CPU {
             }
             0x21 => {
                 // lsr Rx,Ry
-                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shr(reg_y);
 
                     // Carry is bit at position reg_y - 1
@@ -175,7 +180,7 @@ impl CPU {
             }
             0x22 => {
                 // rol Rx,Ry
-                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shl(reg_y);
 
                     // Carry is bit at 32 - reg_y
@@ -185,7 +190,7 @@ impl CPU {
             }
             0x23 => {
                 // ror Rx,Ry
-                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shr(reg_y);
 
                     // Carry is bit at reg_y - 1
@@ -195,7 +200,7 @@ impl CPU {
             }
             0x24 => {
                 // asl Rx,#
-                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
 
@@ -205,7 +210,7 @@ impl CPU {
             }
             0x25 => {
                 // lsr Rx,#
-                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
                     let long = reg.shr(immediate);
@@ -217,7 +222,7 @@ impl CPU {
             }
             0x26 => {
                 // rol Rx,#
-                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
                     let long = reg.shl(immediate);
@@ -229,7 +234,7 @@ impl CPU {
             }
             0x27 => {
                 // ror Rx,#
-                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
                     let long = reg.shr(immediate);
@@ -241,7 +246,7 @@ impl CPU {
             }
             0x38 => {
                 // mul Rx,Ry
-                self.alu_double_value(inst_suffix_byte, false, false, |reg_x, reg_y| {
+                self.alu_double_value_inst(inst_suffix_byte, false, false, |reg_x, reg_y| {
                     reg_x.overflowing_mul(reg_y)
                 })
             }
@@ -336,6 +341,41 @@ impl CPU {
 
                 self.logs.push(string);
             }
+            0x42 => {
+                // ret *
+                let identifier = inst_suffix_byte & 0xF;
+
+                self.return_inst(|zero, carry| match identifier {
+                    0 => true,   // ret
+                    1 => !zero,  // ret NZ
+                    2 => zero,   // ret Z
+                    3 => !carry, // ret NC
+                    4 => carry,  // ret C
+                    _ => panic!("Unexpected identifier {identifier} in 0x42"),
+                })
+            }
+            0x43 => {
+                // push Rx
+                let reg_x_index = inst_suffix_byte & 0xF;
+
+                self.stack[self.sp] = self.get_reg(reg_x_index);
+
+                self.sp += 1;
+            }
+            0x44 => {
+                // pop Rx
+                // SP must be >= 1
+                if self.sp == 0 {
+                    // Error
+                    return self.jump_to_error();
+                }
+
+                let reg_x_index = inst_suffix_byte & 0xF;
+
+                self.sp -= 1;
+
+                self.set_reg(reg_x_index, self.stack[self.sp]);
+            }
             _ => {
                 // Do nothing
                 todo!("Unimplemented {inst_prefix_byte:#X}")
@@ -383,40 +423,11 @@ impl CPU {
         }
     }
 
-    // fn load_mem_inst(&mut self, inst_suffix_byte: u8, write_mem: bool, size: DataSize) {
-    //     let reg_x_index = inst_suffix_byte & 0xF;
-    //     let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
-
-    //     let reg_x = self.get_reg(reg_x_index);
-
-    //     if write_mem {
-    //         // Write to address in Ry with data from Rx
-    //         let address = self.get_reg(reg_y_index).to_lower_word();
-
-    //         match size {
-    //             DataSize::Byte => self.ram.mem_write_byte(address, reg_x.to_le_bytes()[0]),
-    //             DataSize::Word => self.ram.mem_write_word(address, reg_x.to_lower_word()),
-    //             DataSize::Long => self.ram.mem_write_long(address, reg_x),
-    //         }
-    //     } else {
-    //         let address = reg_x.to_lower_word();
-    //         // Read from address in Ry and store into Rx
-    //         let value = match size {
-    //             DataSize::Byte => self.ram.mem_read_byte(address).into(),
-    //             DataSize::Word => self.ram.mem_read_word(address).into(),
-    //             DataSize::Long => self.ram.mem_read_long(address),
-    //         };
-
-    //         self.set_reg(reg_x_index, value);
-    //         self.set_zero(value);
-    //     }
-    // }
-
     ///
     /// ALU load/logic with immediate or register second argument
     ///
     /// `bit32_immed` only applies if second argument is immediate
-    fn alu_immediate_or_reg<T: Fn(u32, u32) -> (u32, bool)>(
+    fn alu_immediate_or_reg_inst<T: Fn(u32, u32) -> (u32, bool)>(
         &mut self,
         inst_suffix_byte: u8,
         set_carry: bool,
@@ -453,7 +464,7 @@ impl CPU {
     /// An ALU instruction with two packed values into the instruction word (**XY)
     ///
     /// `second_value_is_immed` considers the Y value to be an immediate, otherwise it's a register
-    fn alu_double_value<T: Fn(u32, u32) -> (u32, bool)>(
+    fn alu_double_value_inst<T: Fn(u32, u32) -> (u32, bool)>(
         &mut self,
         inst_suffix_byte: u8,
         set_carry: bool,
@@ -477,6 +488,23 @@ impl CPU {
             self.set_carry(carry);
         }
         self.set_zero(value);
+    }
+
+    fn return_inst<T: Fn(bool, bool) -> bool>(&mut self, conditional: T) {
+        if conditional(self.zero, self.carry) {
+            // Should return
+            // SP must be >= 1
+            if self.sp == 0 {
+                // Error
+                return self.jump_to_error();
+            }
+
+            self.sp -= 1;
+
+            let pointed = self.stack[self.sp].to_lower_word() & 0x1FFF;
+
+            self.pc = pointed;
+        }
     }
 
     // Util
@@ -536,12 +564,12 @@ impl CPU {
 
         Ok(CPU {
             pc: 0x2,
-            // TODO: Is this right?
             sp: 0,
             work_regs: [0; 16],
             carry: false,
             zero: false,
             ram: Memory::from_bytes(buffer),
+            stack: [0; 32],
             logs: Vec::new(),
         })
     }

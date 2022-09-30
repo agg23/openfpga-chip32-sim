@@ -111,7 +111,7 @@ impl CPU {
             0x11 => todo!("CRC"),
             0x20 => {
                 // asl Rx,Ry
-                self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     // u64 is used to capture if there is carry
                     let long_long = (reg_x as u64).shl(reg_y);
                     (long_long.to_lower_long(), long_long > u32::MAX as u64)
@@ -119,7 +119,7 @@ impl CPU {
             }
             0x21 => {
                 // lsr Rx,Ry
-                self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shr(reg_y);
 
                     // Carry is bit at position reg_y - 1
@@ -129,7 +129,7 @@ impl CPU {
             }
             0x22 => {
                 // rol Rx,Ry
-                self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shl(reg_y);
 
                     // Carry is bit at 32 - reg_y
@@ -139,11 +139,57 @@ impl CPU {
             }
             0x23 => {
                 // ror Rx,Ry
-                self.alu_double_reg(inst_suffix_byte, true, |reg_x, reg_y| {
+                self.alu_double_value(inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shr(reg_y);
 
                     // Carry is bit at reg_y - 1
                     let index = reg_x.bit_at_index(reg_y - 1);
+                    (long, index)
+                })
+            }
+            0x24 => {
+                // asl Rx,#
+                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                    // For some reason the immediate is locked to be >= 1
+                    let immediate = immediate + 1;
+
+                    let long_long = (reg as u64).shl(immediate);
+                    (long_long.to_lower_long(), long_long > u32::MAX as u64)
+                })
+            }
+            0x25 => {
+                // lsr Rx,#
+                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                    // For some reason the immediate is locked to be >= 1
+                    let immediate = immediate + 1;
+                    let long = reg.shr(immediate);
+
+                    // Carry is bit at position immediate - 1
+                    let index = reg.bit_at_index(immediate - 1);
+                    (long, index)
+                })
+            }
+            0x26 => {
+                // rol Rx,#
+                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                    // For some reason the immediate is locked to be >= 1
+                    let immediate = immediate + 1;
+                    let long = reg.shl(immediate);
+
+                    // Carry is bit at 32 - immediate
+                    let index = reg.bit_at_index(32 - immediate);
+                    (long, index)
+                })
+            }
+            0x27 => {
+                // ror Rx,#
+                self.alu_double_value(inst_suffix_byte, true, true, |reg, immediate| {
+                    // For some reason the immediate is locked to be >= 1
+                    let immediate = immediate + 1;
+                    let long = reg.shr(immediate);
+
+                    // Carry is bit at immediate - 1
+                    let index = reg.bit_at_index(immediate - 1);
                     (long, index)
                 })
             }
@@ -204,18 +250,30 @@ impl CPU {
         self.set_zero(value);
     }
 
-    fn alu_double_reg<T: Fn(u32, u32) -> (u32, bool)>(
+    ///
+    /// An ALU instruction with two packed values into the instruction word (**XY)
+    ///
+    /// `second_value_is_immed` considers the Y value to be an immediate, otherwise it's a register
+    fn alu_double_value<T: Fn(u32, u32) -> (u32, bool)>(
         &mut self,
         inst_suffix_byte: u8,
         set_carry: bool,
+        second_value_is_immed: bool,
         operation: T,
     ) {
-        let reg_x = inst_suffix_byte & 0xF;
-        let reg_y = (inst_suffix_byte >> 4) & 0xF;
+        let reg_x_index = inst_suffix_byte & 0xF;
+        let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
 
-        let (value, carry) = operation(self.get_reg(reg_x), self.get_reg(reg_y));
+        let reg_x = self.get_reg(reg_x_index);
+        let value_y = if second_value_is_immed {
+            reg_y_index as u32
+        } else {
+            self.get_reg(reg_y_index)
+        };
 
-        self.set_reg(reg_x, value);
+        let (value, carry) = operation(reg_x, value_y);
+
+        self.set_reg(reg_x_index, value);
         if set_carry {
             self.set_carry(carry);
         }

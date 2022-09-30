@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, env};
 
 use chip32_sim::util::num::LowerWord;
 use util::test_command_without_setup;
@@ -54,7 +54,9 @@ fn it_alu_32() {
 }
 
 #[test]
-fn it_alu_double_reg() {
+fn it_alu_shift() {
+    env::set_var("BASS_PATH", "../bass_chip32/bass");
+    // Register
     test_alu_with_target("asl", "r1,r2", 0xDEADBEEF, 1, 0xBD5B7DDE, false, true);
     test_alu_with_target("asl", "r1,r2", 0x7EADBEEF, 1, 0xFD5B7DDE, false, false);
 
@@ -68,6 +70,21 @@ fn it_alu_double_reg() {
     test_alu_with_target("ror", "r1,r2", 0x00000001, 1, 0x0, true, true);
     test_alu_with_target("ror", "r1,r2", 0x00000001, 2, 0x0, true, false);
     test_alu_with_target("ror", "r1,r2", 0x10000000, 2, 0x04000000, false, false);
+
+    // Immediate
+    test_alu_with_target("asl", "r1,#1", 0xDEADBEEF, 0, 0xBD5B7DDE, false, true);
+    test_alu_with_target("asl", "r1,#1", 0x7EADBEEF, 0, 0xFD5B7DDE, false, false);
+
+    test_alu_with_target("lsr", "r1,#1", 0xDEADBEEF, 0, 0x6F56DF77, false, true);
+    test_alu_with_target("lsr", "r1,#1", 0xDEADBEE0, 0, 0x6F56DF70, false, false);
+
+    test_alu_with_target("rol", "r1,#1", 0x80000000, 0, 0x0, true, true);
+    test_alu_with_target("rol", "r1,#2", 0x80000000, 0, 0x0, true, false);
+    test_alu_with_target("rol", "r1,#2", 0x10000000, 0, 0x40000000, false, false);
+
+    test_alu_with_target("ror", "r1,#1", 0x00000001, 0, 0x0, true, true);
+    test_alu_with_target("ror", "r1,#2", 0x00000001, 0, 0x0, true, false);
+    test_alu_with_target("ror", "r1,#2", 0x10000000, 0, 0x04000000, false, false);
 }
 
 #[test]

@@ -23,10 +23,18 @@ pub struct CPU {
     pub zero: bool,
 
     pub ram: Memory,
-    // TODO: It is unclear if this should live in memory or separately
+    // TODO: It is unclear if this should live in memory or separately, and unclear how large it should be
     pub stack: [u32; 32],
 
+    pub halt: HaltState,
+
     pub logs: Vec<String>,
+}
+
+pub enum HaltState {
+    Running,
+    Success,
+    Failure,
 }
 
 enum DataSize {
@@ -37,6 +45,14 @@ enum DataSize {
 
 impl CPU {
     pub fn step(&mut self) {
+        if match self.halt {
+            HaltState::Running => false,
+            _ => true,
+        } {
+            // Not running, do nothing
+            return;
+        }
+
         let inst_word = self.pc_word();
         let [inst_prefix_byte, inst_suffix_byte] = inst_word.to_be_bytes();
 
@@ -250,6 +266,7 @@ impl CPU {
                     reg_x.overflowing_mul(reg_y)
                 })
             }
+            0x39..=0x3D => todo!("{inst_prefix_byte}"),
             0x3E => {
                 // div Rx,Ry
                 let reg_x_index = inst_suffix_byte & 0xF;
@@ -375,6 +392,27 @@ impl CPU {
                 self.sp -= 1;
 
                 self.set_reg(reg_x_index, self.stack[self.sp]);
+            }
+            // TODO: 0x45 ERR
+            0x46 => {
+                // exit
+                let identifier = inst_suffix_byte & 0xF;
+
+                match identifier {
+                    0 => HaltState::Success,
+                    1 => HaltState::Failure,
+                    _ => panic!("Unknown identifier {identifier} for 0x46"),
+                };
+            }
+            0x47 => {
+                // clc/sec
+                let identifier = inst_suffix_byte & 0xF;
+
+                match identifier {
+                    0 => self.set_carry(false),
+                    1 => self.set_carry(true),
+                    _ => panic!("Unknown identifier {identifier} for 0x47"),
+                };
             }
             _ => {
                 // Do nothing
@@ -570,6 +608,7 @@ impl CPU {
             zero: false,
             ram: Memory::from_bytes(buffer),
             stack: [0; 32],
+            halt: HaltState::Running,
             logs: Vec::new(),
         })
     }

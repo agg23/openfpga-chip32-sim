@@ -60,6 +60,36 @@ fn it_jump() {
     test_stack("jp c,", "0x10", 0, 0, false, false, 0x4, 0);
 }
 
+#[test]
+fn it_call() {
+    let cpu = test_stack("call", "0x10", 0, 0, false, false, 0x10, 1);
+    assert_eq!(cpu.stack[0], 0x4);
+
+    // NZ
+    let cpu = test_stack("call nz,", "0x10", 0, 0, false, false, 0x10, 1);
+    assert_eq!(cpu.stack[0], 0x4);
+    let cpu = test_stack("call nz,", "0x10", 0, 0, true, false, 0x4, 0);
+    assert_eq!(cpu.stack[0], 0x0);
+
+    // Z
+    let cpu = test_stack("call z,", "0x10", 0, 0, true, false, 0x10, 1);
+    assert_eq!(cpu.stack[0], 0x4);
+    let cpu = test_stack("call z,", "0x10", 0, 0, false, false, 0x4, 0);
+    assert_eq!(cpu.stack[0], 0x0);
+
+    // NC
+    let cpu = test_stack("call nc,", "0x10", 0, 0, false, false, 0x10, 1);
+    assert_eq!(cpu.stack[0], 0x4);
+    let cpu = test_stack("call nc,", "0x10", 0, 0, false, true, 0x4, 0);
+    assert_eq!(cpu.stack[0], 0x0);
+
+    // C
+    let cpu = test_stack("call c,", "0x10", 0, 0, false, true, 0x10, 1);
+    assert_eq!(cpu.stack[0], 0x4);
+    let cpu = test_stack("call c,", "0x10", 0, 0, false, false, 0x4, 0);
+    assert_eq!(cpu.stack[0], 0x0);
+}
+
 fn test_stack(
     command: &str,
     target: &str,

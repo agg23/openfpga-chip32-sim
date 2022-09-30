@@ -279,6 +279,8 @@ impl CPU {
 
                 if reg_y == 0 {
                     // Divide by 0
+                    self.logs.push(format!("Sim: Div by 0"));
+
                     self.jump_to_error();
                 } else {
                     let quotient = reg_x / reg_y;
@@ -386,6 +388,8 @@ impl CPU {
                 // SP must be >= 1
                 if self.sp == 0 {
                     // Error
+                    self.logs.push(format!("Sim: Stack underflow"));
+
                     return self.jump_to_error();
                 }
 
@@ -426,6 +430,18 @@ impl CPU {
                                 0x8 => zero,   // jp z
                                 0x9 => !carry, // jp nc
                                 0xA => carry,  // jp c
+                                _ => unreachable!(),
+                            }
+                        })
+                    }
+                    0xB..=0xF => {
+                        self.call_inst(inst_prefix_byte, inst_suffix_byte, |zero, carry| {
+                            match inst_prefix_upper_nibble {
+                                0xB => true,   // call n
+                                0xC => !zero,  // call nz,n
+                                0xD => zero,   // call z,n
+                                0xE => !carry, // call nz,n
+                                0xF => carry,  // call z,n
                                 _ => unreachable!(),
                             }
                         })
@@ -555,6 +571,8 @@ impl CPU {
             // SP must be >= 1
             if self.sp == 0 {
                 // Error
+                self.logs.push(format!("Sim: Stack underflow"));
+
                 return self.jump_to_error();
             }
 
@@ -566,6 +584,9 @@ impl CPU {
         }
     }
 
+    ///
+    /// A jump instruction. The jump is performed if the conditional is true
+    ///
     fn jump_inst<T: Fn(bool, bool) -> bool>(
         &mut self,
         inst_prefix_byte: u8,
@@ -579,6 +600,33 @@ impl CPU {
 
             let address = highest_nibble | (inst_suffix_byte as u16);
             self.pc = address * 2;
+        }
+    }
+
+    ///
+    /// A call instruction. The call is performed if the conditional is true
+    ///
+    fn call_inst<T: Fn(bool, bool) -> bool>(
+        &mut self,
+        inst_prefix_byte: u8,
+        inst_suffix_byte: u8,
+        conditional: T,
+    ) {
+        if conditional(self.zero, self.carry) {
+            // Should return
+            // SP must be < 31
+            if self.sp >= 31 {
+                // Error
+                self.logs.push(format!("Sim: Stack overflow"));
+
+                return self.jump_to_error();
+            }
+
+            self.stack[self.sp] = self.pc as u32;
+
+            self.sp += 1;
+
+            self.jump_inst(inst_prefix_byte, inst_suffix_byte, |_, _| true);
         }
     }
 

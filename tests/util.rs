@@ -5,14 +5,14 @@ use regex::Regex;
 
 // Testing
 
-pub fn test_command<TS: FnOnce(&mut CPU) -> (), TA: FnOnce(CPU) -> ()>(
+pub fn test_command<TS: FnOnce(&mut CPU) -> (), TA: FnOnce(&CPU) -> ()>(
     asm_path: &str,
     output_path: &str,
     replacements: HashMap<&str, &str>,
     step_count: u32,
     setup: TS,
     assertions: TA,
-) {
+) -> CPU {
     let mut cpu = prep_and_load(asm_path, output_path, replacements);
 
     setup(&mut cpu);
@@ -21,16 +21,18 @@ pub fn test_command<TS: FnOnce(&mut CPU) -> (), TA: FnOnce(CPU) -> ()>(
         cpu.step();
     }
 
-    assertions(cpu);
+    assertions(&cpu);
+
+    cpu
 }
 
-pub fn test_command_without_setup<T: FnOnce(CPU) -> ()>(
+pub fn test_command_without_setup<T: FnOnce(&CPU) -> ()>(
     asm_path: &str,
     output_path: &str,
     replacements: HashMap<&str, &str>,
     step_count: u32,
     assertions: T,
-) {
+) -> CPU {
     test_command(
         asm_path,
         output_path,

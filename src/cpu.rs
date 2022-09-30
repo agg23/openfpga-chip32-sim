@@ -237,6 +237,35 @@ impl CPU {
                     (long, index)
                 })
             }
+            0x38 => {
+                // mul Rx,Ry
+                self.alu_double_value(inst_suffix_byte, false, false, |reg_x, reg_y| {
+                    reg_x.overflowing_mul(reg_y)
+                })
+            }
+            0x3E => {
+                // div Rx,Ry
+                // Set
+                let reg_x_index = inst_suffix_byte & 0xF;
+                let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                if reg_y == 0 {
+                    // Divide by 0
+                    self.jump_to_error();
+                } else {
+                    let quotient = reg_x / reg_y;
+                    let remainder = reg_x % reg_y;
+
+                    self.set_reg(reg_x_index, quotient);
+                    self.set_reg(reg_y_index, remainder);
+
+                    self.set_zero(quotient);
+                    self.set_carry(remainder == 0);
+                }
+            }
             _ => {
                 // Do nothing
                 todo!("Unimplemented {inst_prefix_byte:#X}")
@@ -378,6 +407,12 @@ impl CPU {
             self.set_carry(carry);
         }
         self.set_zero(value);
+    }
+
+    // Util
+
+    fn jump_to_error(&mut self) {
+        self.pc = 0;
     }
 
     // fn pc_byte(&mut self) -> u8 {

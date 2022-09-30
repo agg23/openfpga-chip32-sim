@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env};
 
-use chip32_sim::util::num::LowerWord;
+use chip32_sim::{cpu::CPU, util::num::LowerWord};
 use util::test_command_without_setup;
 
 mod util;
@@ -135,6 +135,22 @@ fn it_alu_zero() {
     test_alu_with_value("and", 0xF0F0F0F0, 0, 0, false, true, false);
 }
 
+#[test]
+fn it_alu_mul_div() {
+    test_alu_with_target("mul", "r1,r2", 0x128, 0xFFFF, 0x127FED8, false, false);
+    test_alu_with_target("mul", "r1,r2", 0x24, 0x1234, 0x28F50, false, false);
+    test_alu_with_target("mul", "r1,r2", 0x24, 0, 0, true, false);
+
+    let cpu = test_alu_with_target("div", "r1,r2", 0x24, 0x2, 0x12, false, true);
+    assert_eq!(cpu.work_regs[2], 0);
+
+    let cpu = test_alu_with_target("div", "r1,r2", 0x1237, 0x7, 0x29A, false, false);
+    assert_eq!(cpu.work_regs[2], 1);
+    // Div by 0, jump to error
+    let cpu = test_alu_with_target("div", "r1,r2", 0x24, 0, 0x24, true, false);
+    assert_eq!(cpu.pc, 0);
+}
+
 fn test_alu(command: &str, immediate: u32, result: u32, bit32: bool) {
     test_alu_with_value(command, immediate, 0xCADEDEAD, result, bit32, false, false);
 }
@@ -166,7 +182,7 @@ fn test_alu_with_target(
     result: u32,
     zero: bool,
     carry: bool,
-) {
+) -> CPU {
     let spaceless_command = command.replace(" ", "_");
 
     let r1_value = format!("{r1_value:#X}");
@@ -187,5 +203,5 @@ fn test_alu_with_target(
             assert_eq!(cpu.carry, carry, "Carry");
             assert_eq!(cpu.work_regs[1], result, "R1");
         },
-    );
+    )
 }

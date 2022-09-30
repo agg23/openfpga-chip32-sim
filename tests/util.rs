@@ -74,7 +74,7 @@ pub fn build_and_load(asm_path: &str, output_path: &str) -> CPU {
 
     assert!(output.status.success(), "Compilation failed: {output:?}");
 
-    CPU::load_file(output_path).expect(&format!("Could not load bin file at {output_path}"))
+    CPU::load_file(output_path, None).expect(&format!("Could not load bin file at {output_path}"))
 }
 
 pub fn prep_and_load(asm_path: &str, output_path: &str, replacements: HashMap<&str, &str>) -> CPU {

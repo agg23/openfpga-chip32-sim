@@ -1,0 +1,13 @@
+{
+  "data": {
+    "magic": "APF_VER_1",
+    "data_slots": [
+      {
+        "name": "Main",
+        "id": 0,
+        "required": true,
+        "filename": "tests/read_sample.bin2"
+      }
+    ]
+  }
+}

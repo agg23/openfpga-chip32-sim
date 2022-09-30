@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{
+    apf::DataSlot,
     mem::Memory,
     util::{
         bitwise::BitIndex,
@@ -26,15 +27,32 @@ pub struct CPU {
     // TODO: It is unclear if this should live in memory or separately, and unclear how large it should be
     pub stack: [u32; 32],
 
+    pub file_state: FileState,
+
     pub halt: HaltState,
 
     pub logs: Vec<String>,
+}
+
+pub struct FileState {
+    pub slots: Vec<DataSlot>,
+
+    pub loaded: FileLoadedState,
 }
 
 pub enum HaltState {
     Running,
     Success,
     Failure,
+}
+
+pub enum FileLoadedState {
+    None,
+    Loaded {
+        slot: u32,
+        data: Vec<u8>,
+        offset: usize,
+    },
 }
 
 enum DataSize {
@@ -420,6 +438,143 @@ impl CPU {
                     _ => panic!("Unknown identifier {identifier} for 0x47"),
                 };
             }
+            0x56 => {
+                // open Rx,Ry
+                if let FileLoadedState::Loaded { slot, .. } = self.file_state.loaded {
+                    // File already open, error
+                    self.logs
+                        .push(format!("Sim: A file (slot {slot}) is already open"));
+
+                    return self.jump_to_error();
+                }
+
+                let reg_x_index = inst_suffix_byte & 0xF;
+                let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+
+                let reg_x = self.get_reg(reg_x_index);
+
+                if let Some(slot) = self.file_state.slots.iter().find(|s| s.id == reg_x) {
+                    let file_content = file_to_buffer(&slot.filename);
+
+                    if let Ok(data) = file_content {
+                        // File successfully loaded
+                        let len = data.len() as u32;
+
+                        self.file_state.loaded = FileLoadedState::Loaded {
+                            slot: reg_x,
+                            data,
+                            offset: 0,
+                        };
+
+                        // Set Ry to size
+                        self.set_reg(reg_y_index, len);
+
+                        self.zero = true;
+                    } else {
+                        // File could not be loaded, set error
+                        self.zero = false;
+                        self.set_reg(reg_y_index, 0);
+
+                        self.logs.push(format!("Sim: File could not be loaded"));
+                    }
+                } else {
+                    // No slot found, set error
+                    self.zero = false;
+                    self.set_reg(reg_y_index, 0);
+
+                    self.logs.push(format!("Sim: Slot {reg_x} not found"));
+                }
+            }
+            0x57 => {
+                // close
+                if match self.file_state.loaded {
+                    FileLoadedState::Loaded { .. } => false,
+                    _ => true,
+                } {
+                    // No file loaded, throw error
+                    self.logs
+                        .push(format!("Sim: Attempted to close when no open file exists"));
+
+                    return self.jump_to_error();
+                }
+
+                self.file_state.loaded = FileLoadedState::None;
+            }
+            0x58 => {
+                // seek Rx
+                let reg_x_index = inst_suffix_byte & 0xF;
+
+                let reg_x = self.get_reg(reg_x_index) as usize;
+
+                if let FileLoadedState::Loaded {
+                    data,
+                    ref mut offset,
+                    ..
+                } = &mut self.file_state.loaded
+                {
+                    if reg_x > data.len() {
+                        // Attempted to seek past end of file
+                        self.logs
+                            .push(format!("Sim: Attempted to seek past end of file"));
+
+                        self.zero = false;
+                        return;
+                    }
+
+                    *offset = reg_x;
+                    self.zero = true;
+                } else {
+                    // No open file, throw error
+                    self.logs
+                        .push(format!("Sim: Attempted to seek when no open file exists"));
+
+                    return self.jump_to_error();
+                }
+            }
+            0x59 => {
+                // read Rx,Ry
+                let reg_x_index = inst_suffix_byte & 0xF;
+                let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+
+                let reg_x = self.get_reg(reg_x_index) as usize;
+                let reg_y = self.get_reg(reg_y_index) as usize;
+
+                if let FileLoadedState::Loaded {
+                    data,
+                    ref mut offset,
+                    ..
+                } = &mut self.file_state.loaded
+                {
+                    if reg_y > 4 * 1024 {
+                        //  Can't load more than 4K at once
+                        self.zero = false;
+
+                        self.logs
+                            .push(format!("Sim: Attempted to read more than 4K bytes"));
+                        return;
+                    } else if reg_y + *offset > data.len() {
+                        // Can't load past end of file
+                        self.zero = false;
+
+                        self.logs
+                            .push(format!("Sim: Attempted to read past end of file"));
+                        return;
+                    }
+
+                    for i in 0..reg_y {
+                        let byte = data[*offset + i];
+                        self.ram.mem_write_byte((reg_x + i).to_lower_word(), byte);
+                    }
+
+                    self.zero = true;
+                } else {
+                    // No open file, throw error
+                    self.logs
+                        .push(format!("Sim: Attempted to read when no open file exists"));
+
+                    return self.jump_to_error();
+                }
+            }
             _ => {
                 match inst_prefix_upper_nibble {
                     0x6..=0xA => {
@@ -678,12 +833,14 @@ impl CPU {
 
     // Loading
 
-    pub fn load_file(path_str: &str) -> Result<Self, io::Error> {
-        let mut file = File::open(path_str)?;
+    pub fn load_file(path_str: &str, data_slots: Option<Vec<DataSlot>>) -> Result<Self, io::Error> {
+        let buffer = file_to_buffer(path_str)?;
 
-        let mut buffer = Vec::<u8>::new();
-
-        file.read_to_end(&mut buffer)?;
+        let data_slots = if let Some(slots) = data_slots {
+            slots
+        } else {
+            Vec::new()
+        };
 
         Ok(CPU {
             pc: 0x2,
@@ -693,8 +850,22 @@ impl CPU {
             zero: false,
             ram: Memory::from_bytes(buffer),
             stack: [0; 32],
+            file_state: FileState {
+                slots: data_slots,
+                loaded: FileLoadedState::None,
+            },
             halt: HaltState::Running,
             logs: Vec::new(),
         })
     }
+}
+
+fn file_to_buffer(path_str: &str) -> Result<Vec<u8>, io::Error> {
+    let mut file = File::open(path_str)?;
+
+    let mut buffer = Vec::<u8>::new();
+
+    file.read_to_end(&mut buffer)?;
+
+    Ok(buffer)
 }

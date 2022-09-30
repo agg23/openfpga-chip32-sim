@@ -55,7 +55,6 @@ fn it_alu_32() {
 
 #[test]
 fn it_alu_shift() {
-    env::set_var("BASS_PATH", "../bass_chip32/bass");
     // Register
     test_alu_with_target("asl", "r1,r2", 0xDEADBEEF, 1, 0xBD5B7DDE, false, true);
     test_alu_with_target("asl", "r1,r2", 0x7EADBEEF, 1, 0xFD5B7DDE, false, false);
@@ -85,6 +84,50 @@ fn it_alu_shift() {
     test_alu_with_target("ror", "r1,#1", 0x00000001, 0, 0x0, true, true);
     test_alu_with_target("ror", "r1,#2", 0x00000001, 0, 0x0, true, false);
     test_alu_with_target("ror", "r1,#2", 0x10000000, 0, 0x04000000, false, false);
+}
+
+#[test]
+fn it_alu_logic_double_reg() {
+    test_alu_with_target(
+        "ld", "r1,r2", 0xDEADBEEF, 0xCADEDEAD, 0xCADEDEAD, false, false,
+    );
+    test_alu_with_target(
+        "and", "r1,r2", 0xCADEDEAD, 0xF0F0F0F0, 0xC0D0D0A0, false, false,
+    );
+    test_alu_with_target(
+        "or", "r1,r2", 0xCADEDEAD, 0xF0F0F0F0, 0xFAFEFEFD, false, false,
+    );
+    test_alu_with_target(
+        "xor", "r1,r2", 0xCADEDEAD, 0xF0F0F0F0, 0x3A2E2E5D, false, false,
+    );
+    test_alu_with_target(
+        "add", "r1,r2", 0xCADEDEAD, 0x00F0F0F0, 0xCBCFCF9D, false, false,
+    );
+    test_alu_with_target(
+        "sub", "r1,r2", 0xCADEDEAD, 0x00F0F0F0, 0xC9EDEDBD, false, false,
+    );
+
+    // CMP tests
+    test_alu_with_target(
+        "cmp", "r1,r2", 0xCADEDEAD, 0x00F0F0F0, 0xCADEDEAD, false, false,
+    );
+    // Should sub to 0
+    test_alu_with_target(
+        "cmp", "r1,r2", 0xCADEDEAD, 0xCADEDEAD, 0xCADEDEAD, true, false,
+    );
+    // Should not set carry
+    test_alu_with_target(
+        "cmp", "r1,r2", 0xCADEDEAD, 0xCADFDEAD, 0xCADEDEAD, false, false,
+    );
+
+    // BIT tests
+    // Should AND to 0
+    test_alu_with_target(
+        "bit", "r1,r2", 0x0F0F0F0F, 0xF0F0F0F0, 0x0F0F0F0F, true, false,
+    );
+    test_alu_with_target(
+        "bit", "r1,r2", 0x0F1F0F0F, 0xF0F0F0F0, 0x0F1F0F0F, false, false,
+    );
 }
 
 #[test]

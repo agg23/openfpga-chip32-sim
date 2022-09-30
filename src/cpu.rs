@@ -33,7 +33,8 @@ impl CPU {
         let inst_word = self.pc_word();
         let [inst_prefix_byte, inst_suffix_byte] = inst_word.to_be_bytes();
 
-        let alu_32_bit = (inst_prefix_byte & 0x10) != 0;
+        let alu_32_immed_bit = (inst_prefix_byte & 0x10) != 0;
+        let alu_reg_bit = (inst_prefix_byte & 0x20) != 0;
 
         match inst_prefix_byte {
             0x0 => {}                                                              // NOP
@@ -43,69 +44,105 @@ impl CPU {
             0x05 => self.basic_load_inst(inst_suffix_byte, true, DataSize::Word),  // ld.w (nnnn),Rx
             0x06 => self.basic_load_inst(inst_suffix_byte, false, DataSize::Long), // ld.l Rx,(nnnn)
             0x07 => self.basic_load_inst(inst_suffix_byte, true, DataSize::Long),  // ld.l (nnnn),Rx
-            0x08 | 0x18 => {
-                self.alu_immediate(inst_suffix_byte, false, alu_32_bit, |_, immediate| {
-                    // ld Rx,#16
-                    (immediate, false)
-                })
+            0x08 | 0x18 | 0x28 => {
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    false,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    true,
+                    |_, immediate| {
+                        // ld Rx,#16
+                        (immediate, false)
+                    },
+                )
             }
-            0x09 | 0x19 => {
-                self.alu_immediate(inst_suffix_byte, false, alu_32_bit, |reg, immediate| {
-                    // and Rx,#16
-                    (reg & immediate, false)
-                })
+            0x09 | 0x19 | 0x29 => {
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    false,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    true,
+                    |reg, immediate| {
+                        // and Rx,#16
+                        (reg & immediate, false)
+                    },
+                )
             }
-            0x0A | 0x1A => {
-                self.alu_immediate(inst_suffix_byte, false, alu_32_bit, |reg, immediate| {
-                    // or Rx,#16
-                    (reg | immediate, false)
-                })
+            0x0A | 0x1A | 0x2A => {
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    false,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    true,
+                    |reg, immediate| {
+                        // or Rx,#16
+                        (reg | immediate, false)
+                    },
+                )
             }
-            0x0B | 0x1B => {
-                self.alu_immediate(inst_suffix_byte, false, alu_32_bit, |reg, immediate| {
-                    // xor Rx,#16
-                    (reg ^ immediate, false)
-                })
+            0x0B | 0x1B | 0x2B => {
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    false,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    true,
+                    |reg, immediate| {
+                        // xor Rx,#16
+                        (reg ^ immediate, false)
+                    },
+                )
             }
-            0x0C | 0x1C => {
-                self.alu_immediate(inst_suffix_byte, true, alu_32_bit, |reg, immediate| {
-                    // add Rx,#16
-                    reg.overflowing_add(immediate)
-                })
+            0x0C | 0x1C | 0x2C => {
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    true,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    true,
+                    |reg, immediate| {
+                        // add Rx,#16
+                        reg.overflowing_add(immediate)
+                    },
+                )
             }
-            0x0D | 0x1D => {
-                self.alu_immediate(inst_suffix_byte, true, alu_32_bit, |reg, immediate| {
-                    // sub Rx,#16
-                    reg.overflowing_sub(immediate)
-                })
+            0x0D | 0x1D | 0x2D => {
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    true,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    true,
+                    |reg, immediate| {
+                        // sub Rx,#16
+                        reg.overflowing_sub(immediate)
+                    },
+                )
             }
-            0x0E | 0x1E => {
+            0x0E | 0x1E | 0x2E => {
                 // cmp Rx,#16
-                let reg = inst_suffix_byte;
-                let immediate = if alu_32_bit {
-                    self.pc_long()
-                } else {
-                    self.pc_word() as u32
-                };
-
-                let (value, _) = self.get_reg(reg).overflowing_sub(immediate);
-
-                // Don't set value
-                self.set_zero(value);
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    false,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    false,
+                    |reg, immediate| reg.overflowing_sub(immediate),
+                )
             }
-            0x0F | 0x1F => {
+            0x0F | 0x1F | 0x2F => {
                 // bit Rx,#16
-                let reg = inst_suffix_byte;
-                let immediate = if alu_32_bit {
-                    self.pc_long()
-                } else {
-                    self.pc_word() as u32
-                };
-
-                let value = self.get_reg(reg) & (immediate);
-
-                // Don't set value
-                self.set_zero(value);
+                self.alu_immediate_or_reg(
+                    inst_suffix_byte,
+                    false,
+                    alu_reg_bit,
+                    alu_32_immed_bit,
+                    false,
+                    |reg, immediate| (reg & immediate, false),
+                )
             }
             0x10 => todo!("RSET"),
             0x11 => todo!("CRC"),
@@ -227,23 +264,37 @@ impl CPU {
         }
     }
 
-    fn alu_immediate<T: Fn(u32, u32) -> (u32, bool)>(
+    ///
+    /// ALU load/logic with immediate or register second argument
+    ///
+    /// `bit32_immed` only applies if second argument is immediate
+    fn alu_immediate_or_reg<T: Fn(u32, u32) -> (u32, bool)>(
         &mut self,
         inst_suffix_byte: u8,
         set_carry: bool,
-        bit32: bool,
+        is_register: bool,
+        bit32_immed: bool,
+        save_output: bool,
         operation: T,
     ) {
-        let reg = inst_suffix_byte;
-        let immediate = if bit32 {
-            self.pc_long()
+        let (value, reg_x_index) = if is_register {
+            // Register
+            let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+            (self.get_reg(reg_y_index), inst_suffix_byte & 0xF)
         } else {
-            self.pc_word() as u32
+            // Immediate
+            if bit32_immed {
+                (self.pc_long(), inst_suffix_byte)
+            } else {
+                (self.pc_word() as u32, inst_suffix_byte)
+            }
         };
 
-        let (value, carry) = operation(self.get_reg(reg), immediate);
+        let (value, carry) = operation(self.get_reg(reg_x_index), value);
 
-        self.set_reg(reg, value);
+        if save_output {
+            self.set_reg(reg_x_index, value);
+        }
         if set_carry {
             self.set_carry(carry);
         }

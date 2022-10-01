@@ -15,3 +15,7 @@ The TUI currently isn't as polished as I would like, and as such it doesn't disp
 | **s**          | Step through this instruction to the next                                                               |
 | **m**          | Switch the display mode to/from memory. Arrow keys up/down will allow you to scroll memory when visible |
 | **q**/**quit** | Quit the simulator                                                                                      |
+
+## Docs
+
+[The official Analogue CHIP32 docs can be found here](https://www.analogue.co/developer/docs/chip32-vm). Unfortunately, the opcode page hasn't been published for some reason, but hopefully it will be soon.

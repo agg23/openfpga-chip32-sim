@@ -29,3 +29,9 @@ impl NamedCells for bool {
         [Cell::from(name), Cell::from(if self { "1" } else { "0" })]
     }
 }
+
+impl NamedCells for String {
+    fn named_cells(self, name: Cow<str>) -> [Cell; 2] {
+        [Cell::from(name), Cell::from(self)]
+    }
+}

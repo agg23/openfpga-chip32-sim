@@ -23,11 +23,13 @@ pub fn render_main<B: Backend>(
     // Table
     let placeholders = [Cell::from(""), Cell::from("")];
     let pc_row = Row::new(
-        state
-            .pc
-            .named_cells("PC".into())
-            .into_iter()
-            .chain(placeholders.clone().into_iter()),
+        state.pc.named_cells("PC".into()).into_iter().chain(
+            state
+                .formatted_instruction
+                .clone()
+                .named_cells("Inst".into())
+                .into_iter(),
+        ),
     );
     let sp_row = Row::new(
         state

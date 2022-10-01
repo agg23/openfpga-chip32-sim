@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     fs::File,
     io::{self, Read},
     ops::{Shl, Shr},
@@ -31,6 +32,7 @@ pub struct CPU {
 
     pub halt: HaltState,
 
+    pub formatted_instruction: String,
     pub logs: Vec<String>,
 }
 
@@ -61,6 +63,39 @@ enum DataSize {
     Long,
 }
 
+impl Display for DataSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DataSize::Byte => ".b",
+            DataSize::Word => ".w",
+            DataSize::Long => ".l",
+        })
+    }
+}
+
+enum InstructionKind {
+    DoubleReg {
+        x: u8,
+        y: u8,
+        /// If Some, the direction a memory access flows
+        ///
+        /// If None, no memory access
+        mem_direction_into_reg: Option<bool>,
+        size: Option<DataSize>,
+    },
+    Immediate {
+        x: u8,
+        n: u32,
+        size: Option<DataSize>,
+    },
+    RegMem {
+        x: u8,
+        address: u16,
+        direction_into_reg: bool,
+        size: DataSize,
+    },
+}
+
 impl CPU {
     pub fn step(&mut self) {
         if match self.halt {
@@ -71,17 +106,24 @@ impl CPU {
             return;
         }
 
+        self.formatted_instruction = String::new();
+
         let inst_word = self.pc_word();
         let [inst_prefix_byte, inst_suffix_byte] = inst_word.to_be_bytes();
 
         let inst_prefix_upper_nibble = (inst_prefix_byte >> 4) & 0xF;
+        let reg_x_index = inst_suffix_byte & 0xF;
+        let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
 
         let alu_32_immed_bit = (inst_prefix_byte & 0x10) != 0;
         let alu_reg_bit = (inst_prefix_byte & 0x20) != 0;
         let load_immed_bit = (inst_prefix_byte & 0x30) == 0;
 
         match inst_prefix_byte {
-            0x0 => {} // NOP
+            0x0 => {
+                // NOP
+                self.formatted_instruction = format!("NOP")
+            }
             0x02 | 0x32 => {
                 // ld.b Rx,(nnnn) | ld.b Rx,(Ry)
                 self.load_mem_inst(inst_suffix_byte, false, load_immed_bit, DataSize::Byte)
@@ -109,6 +151,7 @@ impl CPU {
             0x08 | 0x18 | 0x28 => {
                 // ld Rx,#16/32 | ld Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "ld",
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -120,6 +163,7 @@ impl CPU {
             0x09 | 0x19 | 0x29 => {
                 // and Rx,#16/32 | and Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "and",
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -131,6 +175,7 @@ impl CPU {
             0x0A | 0x1A | 0x2A => {
                 // or Rx,#16/32 | or Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "or",
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -142,6 +187,7 @@ impl CPU {
             0x0B | 0x1B | 0x2B => {
                 // xor Rx,#16/32 | xor Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "xor",
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -153,6 +199,7 @@ impl CPU {
             0x0C | 0x1C | 0x2C => {
                 // add Rx,#16/32 | add Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "add",
                     inst_suffix_byte,
                     true,
                     alu_reg_bit,
@@ -164,6 +211,7 @@ impl CPU {
             0x0D | 0x1D | 0x2D => {
                 // sub Rx,#16/32 | sub Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "sub",
                     inst_suffix_byte,
                     true,
                     alu_reg_bit,
@@ -175,6 +223,7 @@ impl CPU {
             0x0E | 0x1E | 0x2E => {
                 // cmp Rx,#16/32 | cmp Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "cmp",
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -186,6 +235,7 @@ impl CPU {
             0x0F | 0x1F | 0x2F => {
                 // bit Rx,#16/32 | bit Rx,Ry
                 self.alu_immediate_or_reg_inst(
+                    "bit",
                     inst_suffix_byte,
                     false,
                     alu_reg_bit,
@@ -289,9 +339,6 @@ impl CPU {
             0x39..=0x3D => todo!("{inst_prefix_byte}"),
             0x3E => {
                 // div Rx,Ry
-                let reg_x_index = inst_suffix_byte & 0xF;
-                let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
-
                 let reg_x = self.get_reg(reg_x_index);
                 let reg_y = self.get_reg(reg_y_index);
 
@@ -313,7 +360,6 @@ impl CPU {
             }
             0x40 => {
                 // printf Rx
-                let reg_x_index = inst_suffix_byte & 0xF;
                 let address = self.get_reg(reg_x_index).to_lower_word();
 
                 let mut string_bytes = Vec::new();
@@ -339,8 +385,7 @@ impl CPU {
             }
             0x41 => {
                 // hex.* Rx | dec.* Rx
-                let reg_x_index = inst_suffix_byte & 0xF;
-                let identifier = (inst_suffix_byte >> 4) & 0xF;
+                let identifier = reg_y_index;
 
                 let reg_x = self.get_reg(reg_x_index);
 
@@ -382,7 +427,7 @@ impl CPU {
             }
             0x42 => {
                 // ret *
-                let identifier = inst_suffix_byte & 0xF;
+                let identifier = reg_x_index;
 
                 self.return_inst(|zero, carry| match identifier {
                     0 => true,   // ret
@@ -395,7 +440,7 @@ impl CPU {
             }
             0x43 => {
                 // push Rx
-                let reg_x_index = inst_suffix_byte & 0xF;
+                let reg_x_index = reg_x_index;
 
                 self.stack[self.sp] = self.get_reg(reg_x_index);
 
@@ -411,8 +456,6 @@ impl CPU {
                     return self.jump_to_error();
                 }
 
-                let reg_x_index = inst_suffix_byte & 0xF;
-
                 self.sp -= 1;
 
                 self.set_reg(reg_x_index, self.stack[self.sp]);
@@ -420,7 +463,7 @@ impl CPU {
             // TODO: 0x45 ERR
             0x46 => {
                 // exit
-                let identifier = inst_suffix_byte & 0xF;
+                let identifier = reg_x_index;
 
                 match identifier {
                     0 => HaltState::Success,
@@ -430,7 +473,7 @@ impl CPU {
             }
             0x47 => {
                 // clc/sec
-                let identifier = inst_suffix_byte & 0xF;
+                let identifier = reg_x_index;
 
                 match identifier {
                     0 => self.set_carry(false),
@@ -447,9 +490,6 @@ impl CPU {
 
                     return self.jump_to_error();
                 }
-
-                let reg_x_index = inst_suffix_byte & 0xF;
-                let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
 
                 let reg_x = self.get_reg(reg_x_index);
 
@@ -502,8 +542,6 @@ impl CPU {
             }
             0x58 => {
                 // seek Rx
-                let reg_x_index = inst_suffix_byte & 0xF;
-
                 let reg_x = self.get_reg(reg_x_index) as usize;
 
                 if let FileLoadedState::Loaded {
@@ -533,9 +571,6 @@ impl CPU {
             }
             0x59 => {
                 // read Rx,Ry
-                let reg_x_index = inst_suffix_byte & 0xF;
-                let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
-
                 let reg_x = self.get_reg(reg_x_index) as usize;
                 let reg_y = self.get_reg(reg_y_index) as usize;
 
@@ -648,6 +683,25 @@ impl CPU {
             self.set_reg(reg_x_index, value);
             self.set_zero(value);
         }
+
+        self.set_instruction_string(
+            "ld",
+            if second_value_is_immed {
+                InstructionKind::RegMem {
+                    x: reg_x_index,
+                    address,
+                    direction_into_reg: !write_mem,
+                    size,
+                }
+            } else {
+                InstructionKind::DoubleReg {
+                    x: reg_x_index,
+                    y: reg_y_index,
+                    mem_direction_into_reg: Some(!write_mem),
+                    size: Some(size),
+                }
+            },
+        )
     }
 
     ///
@@ -656,6 +710,7 @@ impl CPU {
     /// `bit32_immed` only applies if second argument is immediate
     fn alu_immediate_or_reg_inst<T: Fn(u32, u32) -> (u32, bool)>(
         &mut self,
+        inst_name: &str,
         inst_suffix_byte: u8,
         set_carry: bool,
         is_register: bool,
@@ -663,9 +718,10 @@ impl CPU {
         save_output: bool,
         operation: T,
     ) {
+        let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+
         let (value, reg_x_index) = if is_register {
             // Register
-            let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
             (self.get_reg(reg_y_index), inst_suffix_byte & 0xF)
         } else {
             // Immediate
@@ -685,6 +741,24 @@ impl CPU {
             self.set_carry(carry);
         }
         self.set_zero(value);
+
+        self.set_instruction_string(
+            inst_name,
+            if is_register {
+                InstructionKind::DoubleReg {
+                    x: reg_x_index,
+                    y: reg_y_index,
+                    mem_direction_into_reg: None,
+                    size: None,
+                }
+            } else {
+                InstructionKind::Immediate {
+                    x: reg_x_index,
+                    n: value,
+                    size: None,
+                }
+            },
+        )
     }
 
     ///
@@ -831,6 +905,66 @@ impl CPU {
         self.work_regs[reg as usize]
     }
 
+    // Debugging
+
+    fn set_instruction_string(&mut self, inst_name: &str, kind: InstructionKind) {
+        // This is replicated from the beginning of step
+        // let [inst_prefix_byte, inst_suffix_byte] = inst_word.to_be_bytes();
+
+        // let inst_prefix_upper_nibble = (inst_prefix_byte >> 4) & 0xF;
+        // let reg_x_index = inst_suffix_byte & 0xF;
+        // let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
+        let string = match kind {
+            InstructionKind::DoubleReg {
+                x,
+                y,
+                mem_direction_into_reg,
+                size,
+            } => {
+                let size = if let Some(size) = size {
+                    format!("{size}")
+                } else {
+                    "".into()
+                };
+
+                if let Some(mem_direction_into_reg) = mem_direction_into_reg {
+                    // Memory write
+                    if mem_direction_into_reg {
+                        format!("{inst_name}{size} R{x},(R{y})")
+                    } else {
+                        format!("{inst_name}{size} (R{y}),R{x}")
+                    }
+                } else {
+                    // Reg to reg
+                    format!("{inst_name}{size} R{x},R{y}")
+                }
+            }
+            InstructionKind::Immediate { x, n, size } => {
+                let size = if let Some(size) = size {
+                    format!("{size}")
+                } else {
+                    "".into()
+                };
+
+                format!("{inst_name}{size} R{x},#{n}")
+            }
+            InstructionKind::RegMem {
+                x,
+                address,
+                direction_into_reg,
+                size,
+            } => {
+                if direction_into_reg {
+                    format!("{inst_name}{size} R{x},({address})")
+                } else {
+                    format!("{inst_name}{size} ({address}),R{x}")
+                }
+            }
+        };
+
+        self.formatted_instruction = string;
+    }
+
     // Loading
 
     pub fn load_file(path_str: &str, data_slots: Option<Vec<DataSlot>>) -> Result<Self, io::Error> {
@@ -855,6 +989,7 @@ impl CPU {
                 loaded: FileLoadedState::None,
             },
             halt: HaltState::Running,
+            formatted_instruction: String::new(),
             logs: Vec::new(),
         })
     }

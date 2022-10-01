@@ -50,10 +50,14 @@ pub fn run_app<B: Backend>(
                             next_state.step();
                         }
                         "m" => {
-                            app.display_mode = DisplayMode::Memory {
-                                address: 0,
-                                state: TableState::default(),
-                            };
+                            if let DisplayMode::Input(..) = app.display_mode {
+                                app.display_mode = DisplayMode::Memory {
+                                    address: 0,
+                                    state: TableState::default(),
+                                };
+                            } else {
+                                app.display_mode = DisplayMode::Input(TableState::default());
+                            }
 
                             app.input = String::new();
                         }

@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Memory {
     ram: [u8; 8 * 1024],
     rom_size: usize,

@@ -27,8 +27,12 @@ pub fn run_app<B: Backend>(
     mut app: App,
     mut state: CPU,
 ) -> io::Result<()> {
+    // Maintain two copies of the CPU state, one a step ahead
+    let mut next_state: CPU = state.clone();
+    next_state.step();
+
     loop {
-        terminal.draw(|f| ui(f, &mut app, &state))?;
+        terminal.draw(|f| ui(f, &mut app, &state, &next_state))?;
 
         if let Event::Key(key) = event::read()? {
             if key.code == KeyCode::Esc {
@@ -41,7 +45,9 @@ pub fn run_app<B: Backend>(
                 KeyCode::Enter => {
                     match app.input.as_str() {
                         "s" => {
-                            state.step();
+                            // TODO: This is inefficient, but easy
+                            state = next_state.clone();
+                            next_state.step();
                         }
                         "m" => {
                             app.display_mode = DisplayMode::Memory {
@@ -93,7 +99,7 @@ pub fn run_app<B: Backend>(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU) {
+fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU, next_state: &CPU) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
@@ -110,7 +116,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU) {
 
     match app.display_mode {
         DisplayMode::Input(ref mut table_state) => {
-            render_main(f, chunks.clone(), table_state, state)
+            render_main(f, chunks.clone(), table_state, state, next_state)
         }
         DisplayMode::Memory {
             address,

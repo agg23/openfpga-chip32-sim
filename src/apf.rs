@@ -11,7 +11,7 @@ pub struct DataJsonData {
     pub data_slots: Vec<DataSlot>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct DataSlot {
     // TODO: This can also be a string of hex
     pub id: u32,

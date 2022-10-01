@@ -14,6 +14,7 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
 pub struct CPU {
     pub pc: u16,
     /// The stack pointer
@@ -36,18 +37,21 @@ pub struct CPU {
     pub logs: Vec<String>,
 }
 
+#[derive(Clone)]
 pub struct FileState {
     pub slots: Vec<DataSlot>,
 
     pub loaded: FileLoadedState,
 }
 
+#[derive(Clone)]
 pub enum HaltState {
     Running,
     Success,
     Failure,
 }
 
+#[derive(Clone)]
 pub enum FileLoadedState {
     None,
     Loaded {

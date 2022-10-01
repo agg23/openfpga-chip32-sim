@@ -14,6 +14,7 @@ pub fn render_main<B: Backend>(
     chunks: Vec<Rect>,
     table_state: &mut TableState,
     state: &CPU,
+    next_state: &CPU,
 ) {
     let side_chunks = Layout::default()
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
@@ -24,7 +25,7 @@ pub fn render_main<B: Backend>(
     let placeholders = [Cell::from(""), Cell::from("")];
     let pc_row = Row::new(
         state.pc.named_cells("PC".into()).into_iter().chain(
-            state
+            next_state
                 .formatted_instruction
                 .clone()
                 .named_cells("Inst".into())

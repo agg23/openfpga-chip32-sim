@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs};
+use std::{collections::HashMap, fs};
 
 use chip32_sim::{apf::DataJson, cpu::CPU};
 use util::test_command;

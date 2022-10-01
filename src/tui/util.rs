@@ -1,31 +1,31 @@
 use std::borrow::Cow;
 
-use tui::widgets::{Cell, Row};
+use tui::widgets::Cell;
 
-pub trait NamedRow {
-    fn named_row(self, name: Cow<str>) -> Row;
+pub trait NamedCells {
+    fn named_cells(self, name: Cow<str>) -> [Cell; 2];
 }
 
-impl NamedRow for u16 {
-    fn named_row(self, name: Cow<str>) -> Row {
-        Row::new([Cell::from(name), Cell::from(format!("{self:04X}"))])
+impl NamedCells for u16 {
+    fn named_cells(self, name: Cow<str>) -> [Cell; 2] {
+        [Cell::from(name), Cell::from(format!("{self:04X}"))]
     }
 }
 
-impl NamedRow for u32 {
-    fn named_row(self, name: Cow<str>) -> Row {
-        Row::new([Cell::from(name), Cell::from(format!("{self:08X}"))])
+impl NamedCells for u32 {
+    fn named_cells(self, name: Cow<str>) -> [Cell; 2] {
+        [Cell::from(name), Cell::from(format!("{self:08X}"))]
     }
 }
 
-impl NamedRow for usize {
-    fn named_row(self, name: Cow<str>) -> Row {
-        Row::new([Cell::from(name), Cell::from(format!("{self:08X}"))])
+impl NamedCells for usize {
+    fn named_cells(self, name: Cow<str>) -> [Cell; 2] {
+        [Cell::from(name), Cell::from(format!("{self:08X}"))]
     }
 }
 
-impl NamedRow for bool {
-    fn named_row(self, name: Cow<str>) -> Row {
-        Row::new([Cell::from(name), Cell::from(if self { "1" } else { "0" })])
+impl NamedCells for bool {
+    fn named_cells(self, name: Cow<str>) -> [Cell; 2] {
+        [Cell::from(name), Cell::from(if self { "1" } else { "0" })]
     }
 }

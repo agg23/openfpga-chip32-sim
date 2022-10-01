@@ -74,6 +74,10 @@ impl Display for DataSize {
 }
 
 enum InstructionKind {
+    SingleReg {
+        x: u8,
+        size: Option<DataSize>,
+    },
     DoubleReg {
         x: u8,
         y: u8,
@@ -94,6 +98,12 @@ enum InstructionKind {
         direction_into_reg: bool,
         size: DataSize,
     },
+    Jump {
+        always: bool,
+        zero: Option<bool>,
+        carry: Option<bool>,
+    },
+    None,
 }
 
 impl CPU {
@@ -121,8 +131,8 @@ impl CPU {
 
         match inst_prefix_byte {
             0x0 => {
-                // NOP
-                self.formatted_instruction = format!("NOP")
+                // nop
+                self.formatted_instruction = format!("nop")
             }
             0x02 | 0x32 => {
                 // ld.b Rx,(nnnn) | ld.b Rx,(Ry)
@@ -248,7 +258,7 @@ impl CPU {
             0x11 => todo!("CRC"),
             0x20 => {
                 // asl Rx,Ry
-                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst("asl", inst_suffix_byte, true, false, |reg_x, reg_y| {
                     // u64 is used to capture if there is carry
                     let long_long = (reg_x as u64).shl(reg_y);
                     (long_long.to_lower_long(), long_long > u32::MAX as u64)
@@ -256,7 +266,7 @@ impl CPU {
             }
             0x21 => {
                 // lsr Rx,Ry
-                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst("lsr", inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shr(reg_y);
 
                     // Carry is bit at position reg_y - 1
@@ -266,7 +276,7 @@ impl CPU {
             }
             0x22 => {
                 // rol Rx,Ry
-                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst("rol", inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shl(reg_y);
 
                     // Carry is bit at 32 - reg_y
@@ -276,7 +286,7 @@ impl CPU {
             }
             0x23 => {
                 // ror Rx,Ry
-                self.alu_double_value_inst(inst_suffix_byte, true, false, |reg_x, reg_y| {
+                self.alu_double_value_inst("ror", inst_suffix_byte, true, false, |reg_x, reg_y| {
                     let long = reg_x.shr(reg_y);
 
                     // Carry is bit at reg_y - 1
@@ -286,7 +296,7 @@ impl CPU {
             }
             0x24 => {
                 // asl Rx,#
-                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst("asl", inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
 
@@ -296,7 +306,7 @@ impl CPU {
             }
             0x25 => {
                 // lsr Rx,#
-                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst("lsr", inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
                     let long = reg.shr(immediate);
@@ -308,7 +318,7 @@ impl CPU {
             }
             0x26 => {
                 // rol Rx,#
-                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst("rol", inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
                     let long = reg.shl(immediate);
@@ -320,7 +330,7 @@ impl CPU {
             }
             0x27 => {
                 // ror Rx,#
-                self.alu_double_value_inst(inst_suffix_byte, true, true, |reg, immediate| {
+                self.alu_double_value_inst("ror", inst_suffix_byte, true, true, |reg, immediate| {
                     // For some reason the immediate is locked to be >= 1
                     let immediate = immediate + 1;
                     let long = reg.shr(immediate);
@@ -332,7 +342,7 @@ impl CPU {
             }
             0x38 => {
                 // mul Rx,Ry
-                self.alu_double_value_inst(inst_suffix_byte, false, false, |reg_x, reg_y| {
+                self.alu_double_value_inst("mul", inst_suffix_byte, false, false, |reg_x, reg_y| {
                     reg_x.overflowing_mul(reg_y)
                 })
             }
@@ -357,6 +367,16 @@ impl CPU {
                     self.set_zero(quotient);
                     self.set_carry(remainder == 0);
                 }
+
+                self.set_instruction_string(
+                    "div",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
             }
             0x40 => {
                 // printf Rx
@@ -382,6 +402,14 @@ impl CPU {
                 );
 
                 self.logs.push(string);
+
+                self.set_instruction_string(
+                    "printf",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                );
             }
             0x41 => {
                 // hex.* Rx | dec.* Rx
@@ -389,31 +417,27 @@ impl CPU {
 
                 let reg_x = self.get_reg(reg_x_index);
 
-                let string = match identifier {
+                let (string, size) = match identifier {
                     // hex
                     0 => {
                         let byte = reg_x.to_le_bytes()[0];
-                        format!("{byte:02X}")
+                        (format!("{byte:02X}"), DataSize::Byte)
                     }
                     1 => {
                         let word = reg_x.to_lower_word();
-                        format!("{word:04X}")
+                        (format!("{word:04X}"), DataSize::Word)
                     }
-                    2 => {
-                        format!("{reg_x:08X}")
-                    }
+                    2 => (format!("{reg_x:08X}"), DataSize::Long),
                     // dec
                     3 => {
                         let byte = reg_x.to_le_bytes()[0];
-                        format!("{byte:02}")
+                        (format!("{byte:02}"), DataSize::Byte)
                     }
                     4 => {
                         let word = reg_x.to_lower_word();
-                        format!("{word:04}")
+                        (format!("{word:04}"), DataSize::Word)
                     }
-                    5 => {
-                        format!("{reg_x:08}")
-                    }
+                    5 => (format!("{reg_x:08}"), DataSize::Long),
                     _ => panic!("Unexpected identifier {identifier} in 0x41"),
                 };
 
@@ -424,6 +448,14 @@ impl CPU {
                 };
 
                 self.logs.push(string);
+
+                self.set_instruction_string(
+                    if identifier < 3 { "hex" } else { "dec" },
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: Some(size),
+                    },
+                );
             }
             0x42 => {
                 // ret *
@@ -436,7 +468,39 @@ impl CPU {
                     3 => !carry, // ret NC
                     4 => carry,  // ret C
                     _ => panic!("Unexpected identifier {identifier} in 0x42"),
-                })
+                });
+
+                self.set_instruction_string(
+                    "ret",
+                    match identifier {
+                        0 => InstructionKind::Jump {
+                            always: true,
+                            zero: None,
+                            carry: None,
+                        },
+                        1 => InstructionKind::Jump {
+                            always: false,
+                            zero: Some(false),
+                            carry: None,
+                        },
+                        2 => InstructionKind::Jump {
+                            always: false,
+                            zero: Some(true),
+                            carry: None,
+                        },
+                        3 => InstructionKind::Jump {
+                            always: false,
+                            zero: None,
+                            carry: Some(false),
+                        },
+                        4 => InstructionKind::Jump {
+                            always: false,
+                            zero: None,
+                            carry: Some(true),
+                        },
+                        _ => unreachable!(),
+                    },
+                )
             }
             0x43 => {
                 // push Rx
@@ -445,9 +509,25 @@ impl CPU {
                 self.stack[self.sp] = self.get_reg(reg_x_index);
 
                 self.sp += 1;
+
+                self.set_instruction_string(
+                    "push",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                )
             }
             0x44 => {
                 // pop Rx
+                self.set_instruction_string(
+                    "pop",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                );
+
                 // SP must be >= 1
                 if self.sp == 0 {
                     // Error
@@ -470,6 +550,14 @@ impl CPU {
                     1 => HaltState::Failure,
                     _ => panic!("Unknown identifier {identifier} for 0x46"),
                 };
+
+                self.set_instruction_string(
+                    "exit",
+                    InstructionKind::SingleReg {
+                        x: identifier,
+                        size: None,
+                    },
+                );
             }
             0x47 => {
                 // clc/sec
@@ -480,9 +568,24 @@ impl CPU {
                     1 => self.set_carry(true),
                     _ => panic!("Unknown identifier {identifier} for 0x47"),
                 };
+
+                self.set_instruction_string(
+                    if identifier == 0 { "clc" } else { "sec" },
+                    InstructionKind::None,
+                );
             }
             0x56 => {
                 // open Rx,Ry
+                self.set_instruction_string(
+                    "open",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                );
+
                 if let FileLoadedState::Loaded { slot, .. } = self.file_state.loaded {
                     // File already open, error
                     self.logs
@@ -527,6 +630,8 @@ impl CPU {
             }
             0x57 => {
                 // close
+                self.set_instruction_string("close", InstructionKind::None);
+
                 if match self.file_state.loaded {
                     FileLoadedState::Loaded { .. } => false,
                     _ => true,
@@ -542,6 +647,14 @@ impl CPU {
             }
             0x58 => {
                 // seek Rx
+                self.set_instruction_string(
+                    "seek",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                );
+
                 let reg_x = self.get_reg(reg_x_index) as usize;
 
                 if let FileLoadedState::Loaded {
@@ -571,6 +684,16 @@ impl CPU {
             }
             0x59 => {
                 // read Rx,Ry
+                self.set_instruction_string(
+                    "read",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                );
+
                 let reg_x = self.get_reg(reg_x_index) as usize;
                 let reg_y = self.get_reg(reg_y_index) as usize;
 
@@ -622,7 +745,39 @@ impl CPU {
                                 0xA => carry,  // jp c
                                 _ => unreachable!(),
                             }
-                        })
+                        });
+
+                        self.set_instruction_string(
+                            "jp",
+                            match inst_prefix_upper_nibble {
+                                0x6 => InstructionKind::Jump {
+                                    always: true,
+                                    zero: None,
+                                    carry: None,
+                                },
+                                0x7 => InstructionKind::Jump {
+                                    always: false,
+                                    zero: Some(false),
+                                    carry: None,
+                                },
+                                0x8 => InstructionKind::Jump {
+                                    always: false,
+                                    zero: Some(true),
+                                    carry: None,
+                                },
+                                0x9 => InstructionKind::Jump {
+                                    always: false,
+                                    zero: None,
+                                    carry: Some(false),
+                                },
+                                0xA => InstructionKind::Jump {
+                                    always: false,
+                                    zero: None,
+                                    carry: Some(true),
+                                },
+                                _ => unreachable!(),
+                            },
+                        );
                     }
                     0xB..=0xF => {
                         self.call_inst(inst_prefix_byte, inst_suffix_byte, |zero, carry| {
@@ -634,7 +789,39 @@ impl CPU {
                                 0xF => carry,  // call z,n
                                 _ => unreachable!(),
                             }
-                        })
+                        });
+
+                        self.set_instruction_string(
+                            "call",
+                            match inst_prefix_upper_nibble {
+                                0xB => InstructionKind::Jump {
+                                    always: true,
+                                    zero: None,
+                                    carry: None,
+                                },
+                                0xC => InstructionKind::Jump {
+                                    always: false,
+                                    zero: Some(false),
+                                    carry: None,
+                                },
+                                0xD => InstructionKind::Jump {
+                                    always: false,
+                                    zero: Some(true),
+                                    carry: None,
+                                },
+                                0xE => InstructionKind::Jump {
+                                    always: false,
+                                    zero: None,
+                                    carry: Some(false),
+                                },
+                                0xF => InstructionKind::Jump {
+                                    always: false,
+                                    zero: None,
+                                    carry: Some(true),
+                                },
+                                _ => unreachable!(),
+                            },
+                        );
                     }
                     _ => {
                         // Do nothing
@@ -767,6 +954,7 @@ impl CPU {
     /// `second_value_is_immed` considers the Y value to be an immediate, otherwise it's a register
     fn alu_double_value_inst<T: Fn(u32, u32) -> (u32, bool)>(
         &mut self,
+        inst_name: &str,
         inst_suffix_byte: u8,
         set_carry: bool,
         second_value_is_immed: bool,
@@ -789,6 +977,24 @@ impl CPU {
             self.set_carry(carry);
         }
         self.set_zero(value);
+
+        self.set_instruction_string(
+            inst_name,
+            if second_value_is_immed {
+                InstructionKind::Immediate {
+                    x: reg_x_index,
+                    n: reg_y_index as u32,
+                    size: None,
+                }
+            } else {
+                InstructionKind::DoubleReg {
+                    x: reg_x_index,
+                    y: reg_y_index,
+                    mem_direction_into_reg: None,
+                    size: None,
+                }
+            },
+        )
     }
 
     ///
@@ -915,17 +1121,18 @@ impl CPU {
         // let reg_x_index = inst_suffix_byte & 0xF;
         // let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
         let string = match kind {
+            InstructionKind::SingleReg { x, size } => {
+                let size = format_size(size);
+
+                format!("{inst_name}{size} R{x}")
+            }
             InstructionKind::DoubleReg {
                 x,
                 y,
                 mem_direction_into_reg,
                 size,
             } => {
-                let size = if let Some(size) = size {
-                    format!("{size}")
-                } else {
-                    "".into()
-                };
+                let size = format_size(size);
 
                 if let Some(mem_direction_into_reg) = mem_direction_into_reg {
                     // Memory write
@@ -940,11 +1147,7 @@ impl CPU {
                 }
             }
             InstructionKind::Immediate { x, n, size } => {
-                let size = if let Some(size) = size {
-                    format!("{size}")
-                } else {
-                    "".into()
-                };
+                let size = format_size(size);
 
                 format!("{inst_name}{size} R{x},#{n}")
             }
@@ -960,6 +1163,32 @@ impl CPU {
                     format!("{inst_name}{size} ({address}),R{x}")
                 }
             }
+            InstructionKind::Jump {
+                always,
+                zero,
+                carry,
+            } => {
+                let modifier = if always {
+                    ""
+                } else if let Some(zero) = zero {
+                    if zero {
+                        "z"
+                    } else {
+                        "nz"
+                    }
+                } else if let Some(carry) = carry {
+                    if carry {
+                        "c"
+                    } else {
+                        "nc"
+                    }
+                } else {
+                    unreachable!()
+                };
+
+                format!("{inst_name} {modifier}").trim().into()
+            }
+            InstructionKind::None => inst_name.into(),
         };
 
         self.formatted_instruction = string;
@@ -1003,4 +1232,12 @@ fn file_to_buffer(path_str: &str) -> Result<Vec<u8>, io::Error> {
     file.read_to_end(&mut buffer)?;
 
     Ok(buffer)
+}
+
+fn format_size(size: Option<DataSize>) -> String {
+    if let Some(size) = size {
+        format!("{size}")
+    } else {
+        "".into()
+    }
 }

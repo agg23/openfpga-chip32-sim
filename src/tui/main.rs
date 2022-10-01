@@ -85,7 +85,7 @@ pub fn render_main<B: Backend>(
         Constraint::Length(10),
         Constraint::Length(16),
         Constraint::Length(10),
-        Constraint::Length(8),
+        Constraint::Length(16),
     ])
     .block(Block::default().borders(Borders::ALL).title("Registers"));
 

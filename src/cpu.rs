@@ -103,6 +103,7 @@ enum InstructionKind {
         size: DataSize,
     },
     Jump {
+        immediate: Option<u16>,
         always: bool,
         zero: Option<bool>,
         carry: Option<bool>,
@@ -478,26 +479,31 @@ impl CPU {
                     "ret",
                     match identifier {
                         0 => InstructionKind::Jump {
+                            immediate: None,
                             always: true,
                             zero: None,
                             carry: None,
                         },
                         1 => InstructionKind::Jump {
+                            immediate: None,
                             always: false,
                             zero: Some(false),
                             carry: None,
                         },
                         2 => InstructionKind::Jump {
+                            immediate: None,
                             always: false,
                             zero: Some(true),
                             carry: None,
                         },
                         3 => InstructionKind::Jump {
+                            immediate: None,
                             always: false,
                             zero: None,
                             carry: Some(false),
                         },
                         4 => InstructionKind::Jump {
+                            immediate: None,
                             always: false,
                             zero: None,
                             carry: Some(true),
@@ -549,11 +555,13 @@ impl CPU {
                 // exit
                 let identifier = reg_x_index;
 
-                match identifier {
+                self.halt = match identifier {
                     0 => HaltState::Success,
                     1 => HaltState::Failure,
                     _ => panic!("Unknown identifier {identifier} for 0x46"),
                 };
+
+                self.logs.push(format!("Sim: Halted with {identifier}"));
 
                 self.set_instruction_string(
                     "exit",
@@ -740,46 +748,20 @@ impl CPU {
             _ => {
                 match inst_prefix_upper_nibble {
                     0x6..=0xA => {
-                        self.jump_inst(inst_prefix_byte, inst_suffix_byte, |zero, carry| {
-                            match inst_prefix_upper_nibble {
-                                0x6 => true,   // jp n
-                                0x7 => !zero,  // jp nz
-                                0x8 => zero,   // jp z
-                                0x9 => !carry, // jp nc
-                                0xA => carry,  // jp c
-                                _ => unreachable!(),
-                            }
-                        });
-
-                        self.set_instruction_string(
-                            "jp",
-                            match inst_prefix_upper_nibble {
-                                0x6 => InstructionKind::Jump {
-                                    always: true,
-                                    zero: None,
-                                    carry: None,
-                                },
-                                0x7 => InstructionKind::Jump {
-                                    always: false,
-                                    zero: Some(false),
-                                    carry: None,
-                                },
-                                0x8 => InstructionKind::Jump {
-                                    always: false,
-                                    zero: Some(true),
-                                    carry: None,
-                                },
-                                0x9 => InstructionKind::Jump {
-                                    always: false,
-                                    zero: None,
-                                    carry: Some(false),
-                                },
-                                0xA => InstructionKind::Jump {
-                                    always: false,
-                                    zero: None,
-                                    carry: Some(true),
-                                },
-                                _ => unreachable!(),
+                        self.jump_inst(
+                            inst_prefix_byte,
+                            inst_suffix_byte,
+                            inst_prefix_upper_nibble,
+                            true,
+                            |zero, carry| {
+                                match inst_prefix_upper_nibble {
+                                    0x6 => true,   // jp n
+                                    0x7 => !zero,  // jp nz
+                                    0x8 => zero,   // jp z
+                                    0x9 => !carry, // jp nc
+                                    0xA => carry,  // jp c
+                                    _ => unreachable!(),
+                                }
                             },
                         );
                     }
@@ -799,26 +781,31 @@ impl CPU {
                             "call",
                             match inst_prefix_upper_nibble {
                                 0xB => InstructionKind::Jump {
+                                    immediate: None,
                                     always: true,
                                     zero: None,
                                     carry: None,
                                 },
                                 0xC => InstructionKind::Jump {
+                                    immediate: None,
                                     always: false,
                                     zero: Some(false),
                                     carry: None,
                                 },
                                 0xD => InstructionKind::Jump {
+                                    immediate: None,
                                     always: false,
                                     zero: Some(true),
                                     carry: None,
                                 },
                                 0xE => InstructionKind::Jump {
+                                    immediate: None,
                                     always: false,
                                     zero: None,
                                     carry: Some(false),
                                 },
                                 0xF => InstructionKind::Jump {
+                                    immediate: None,
                                     always: false,
                                     zero: None,
                                     carry: Some(true),
@@ -1030,15 +1017,58 @@ impl CPU {
         &mut self,
         inst_prefix_byte: u8,
         inst_suffix_byte: u8,
+        inst_prefix_upper_nibble: u8,
+        log_instruction: bool,
         conditional: T,
     ) {
+        let inst_prefix_byte = inst_prefix_byte & 0xF;
+        let highest_nibble = ((inst_prefix_byte as u16) << 4) & 0xF00;
+
+        let address = highest_nibble | (inst_suffix_byte as u16);
+        let address = address * 2;
+
         if conditional(self.zero, self.carry) {
             // Should jump
-            let inst_prefix_byte = inst_prefix_byte & 0xF;
-            let highest_nibble = ((inst_prefix_byte as u16) << 4) & 0xF00;
+            self.pc = address;
+        }
 
-            let address = highest_nibble | (inst_suffix_byte as u16);
-            self.pc = address * 2;
+        if log_instruction {
+            self.set_instruction_string(
+                "jp",
+                match inst_prefix_upper_nibble {
+                    0x6 => InstructionKind::Jump {
+                        immediate: Some(address),
+                        always: true,
+                        zero: None,
+                        carry: None,
+                    },
+                    0x7 => InstructionKind::Jump {
+                        immediate: Some(address),
+                        always: false,
+                        zero: Some(false),
+                        carry: None,
+                    },
+                    0x8 => InstructionKind::Jump {
+                        immediate: Some(address),
+                        always: false,
+                        zero: Some(true),
+                        carry: None,
+                    },
+                    0x9 => InstructionKind::Jump {
+                        immediate: Some(address),
+                        always: false,
+                        zero: None,
+                        carry: Some(false),
+                    },
+                    0xA => InstructionKind::Jump {
+                        immediate: Some(address),
+                        always: false,
+                        zero: None,
+                        carry: Some(true),
+                    },
+                    _ => unreachable!(),
+                },
+            );
         }
     }
 
@@ -1065,7 +1095,7 @@ impl CPU {
 
             self.sp += 1;
 
-            self.jump_inst(inst_prefix_byte, inst_suffix_byte, |_, _| true);
+            self.jump_inst(inst_prefix_byte, inst_suffix_byte, 0, false, |_, _| true);
         }
     }
 
@@ -1153,7 +1183,7 @@ impl CPU {
             InstructionKind::Immediate { x, n, size } => {
                 let size = format_size(size);
 
-                format!("{inst_name}{size} R{x},#{n}")
+                format!("{inst_name}{size} R{x},#{n:#X}")
             }
             InstructionKind::RegMem {
                 x,
@@ -1162,12 +1192,13 @@ impl CPU {
                 size,
             } => {
                 if direction_into_reg {
-                    format!("{inst_name}{size} R{x},({address})")
+                    format!("{inst_name}{size} R{x},({address:#X})")
                 } else {
-                    format!("{inst_name}{size} ({address}),R{x}")
+                    format!("{inst_name}{size} ({address:#X}),R{x}")
                 }
             }
             InstructionKind::Jump {
+                immediate,
                 always,
                 zero,
                 carry,
@@ -1176,21 +1207,27 @@ impl CPU {
                     ""
                 } else if let Some(zero) = zero {
                     if zero {
-                        "z"
+                        "z "
                     } else {
-                        "nz"
+                        "nz "
                     }
                 } else if let Some(carry) = carry {
                     if carry {
-                        "c"
+                        "c "
                     } else {
-                        "nc"
+                        "nc "
                     }
                 } else {
                     unreachable!()
                 };
 
-                format!("{inst_name} {modifier}").trim().into()
+                let immediate = if let Some(immediate) = immediate {
+                    format!("#{immediate:#X}")
+                } else {
+                    "".into()
+                };
+
+                format!("{inst_name} {modifier}{immediate}").trim().into()
             }
             InstructionKind::None => inst_name.into(),
         };

@@ -1,0 +1,48 @@
+{
+  "data": {
+    "magic": "APF_VER_1",
+    "data_slots": [
+      {
+        "name": "Configuration",
+        "id": 1,
+        "required": true,
+        "filename": "C:/Users/adam/code/fpga/chip32-sim/example/Test 1.dat",
+        "parameters": 3,
+        "extensions": ["dat"]
+      },
+      {
+        "name": "Audio",
+        "id": 99,
+        "required": true,
+        "parameters": 2,
+        "filename": "C:/Users/adam/code/fpga/chip32-sim/example/ex_audio_1.wav",
+        "extensions": ["wav"],
+        "size_maximum": "0x3C00000",
+        "address": "0x00400000"
+      },
+      {
+        "name": "Image: Dots",
+        "id": "0x20",
+        "required": true,
+        "parameters": 2,
+        "filename": "C:/Users/adam/code/fpga/chip32-sim/example/ex_image_1.bin",
+        "address": "0x00000000"
+      },
+      {
+        "name": "Image: Grid",
+        "id": "0x21",
+        "required": true,
+        "parameters": 2,
+        "filename": "C:/Users/adam/code/fpga/chip32-sim/example/ex_image_2.bin",
+        "address": "0x12345678"
+      },
+      {
+        "name": "Image: 12 Colors",
+        "id": "0x22",
+        "required": true,
+        "parameters": 2,
+        "filename": "C:/Users/adam/code/fpga/chip32-sim/example/ex_image_3.bin"
+      }
+    ]
+  }
+}

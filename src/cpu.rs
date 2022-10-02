@@ -24,6 +24,7 @@ pub struct CPU {
     /// When None, there are no values on the stack
     pub sp: usize,
     pub work_regs: [u32; 16],
+    pub error_pc_reg: u16,
     pub carry: bool,
     pub zero: bool,
 
@@ -353,7 +354,64 @@ impl CPU {
                     reg_x.overflowing_mul(reg_y)
                 })
             }
-            0x39..=0x3D => todo!("{inst_prefix_byte}"),
+            0x39 => {
+                // test Rx,Ry
+                self.set_instruction_string(
+                    "test",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                );
+
+                let reg_x = (self.get_reg(reg_x_index) & 0x1FFF) as u16;
+                let reg_y = (self.get_reg(reg_y_index) & 0x1FFF) as u16;
+
+                let mut x_address = reg_x;
+                let mut y_address = reg_y;
+                let mut x_value = self.ram.mem_read_byte(reg_x);
+                let mut y_value = self.ram.mem_read_byte(reg_y);
+
+                loop {
+                    if x_value == 0 && y_value == 0 {
+                        // Full match
+                        self.zero = true;
+
+                        self.logs.push(format!("Sim: test strings matched"));
+                        return;
+                    } else if y_value == 0 {
+                        // Partial match
+                        self.carry = true;
+
+                        self.logs
+                            .push(format!("Sim: test strings partially matched"));
+                        return;
+                    }
+
+                    if x_value != y_value {
+                        // No match
+                        // TODO: Do we need to clear flags?
+                        self.logs.push(format!("Sim: test strings did not match"));
+                        return;
+                    }
+
+                    x_address = x_address + 1;
+                    y_address = y_address + 1;
+
+                    if x_address > 0x1FFF || y_address > 0x1FFF {
+                        // Overran end of memory
+                        self.logs.push(format!("Sim: test overran end of memory"));
+
+                        return;
+                    }
+
+                    x_value = self.ram.mem_read_byte(x_address);
+                    y_value = self.ram.mem_read_byte(y_address);
+                }
+            }
+            0x3A..=0x3D => todo!("{inst_prefix_byte}"),
             0x3E => {
                 // div Rx,Ry
                 let reg_x = self.get_reg(reg_x_index);
@@ -552,7 +610,21 @@ impl CPU {
 
                 self.set_reg(reg_x_index, self.stack[self.sp]);
             }
-            // TODO: 0x45 ERR
+            0x45 => {
+                // err Rx,Ry
+                self.set_reg(reg_x_index, 1);
+                self.set_reg(reg_y_index, self.error_pc_reg as u32);
+
+                self.set_instruction_string(
+                    "err",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                );
+            }
             0x46 => {
                 // exit
                 let identifier = reg_x_index;
@@ -1346,6 +1418,9 @@ impl CPU {
     // Util
 
     fn jump_to_error(&mut self) {
+        // Save erroring PC
+        self.error_pc_reg = self.pc;
+
         self.pc = 0;
     }
 
@@ -1507,6 +1582,7 @@ impl CPU {
             pc: 0x2,
             sp: 0,
             work_regs,
+            error_pc_reg: 0,
             carry: false,
             zero: false,
             ram: Memory::from_bytes(buffer),

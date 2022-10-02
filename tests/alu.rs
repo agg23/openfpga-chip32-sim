@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use chip32_sim::{cpu::CPU, util::num::LowerWord};
 use util::test_command_without_setup;

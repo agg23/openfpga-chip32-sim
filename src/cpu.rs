@@ -243,7 +243,7 @@ impl CPU {
                 self.alu_immediate_or_reg_inst(
                     "cmp",
                     inst_suffix_byte,
-                    false,
+                    true,
                     alu_reg_bit,
                     alu_32_immed_bit,
                     false,

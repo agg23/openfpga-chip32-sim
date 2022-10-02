@@ -18,8 +18,8 @@ fn it_alu_16() {
     test_alu_with_value("cmp", 0xCADE, 0xDEAD, 0xDEAD, false, false, false);
     // Should sub to 0
     test_alu_with_value("cmp", 0xCADE, 0xCADE, 0xCADE, false, true, false);
-    // Should not set carry
-    test_alu_with_value("cmp", 0xCADF, 0xCADE, 0xCADE, false, false, false);
+    // Should set carry
+    test_alu_with_value("cmp", 0xCADF, 0xCADE, 0xCADE, false, false, true);
 
     // BIT tests
     // Should AND to 0
@@ -40,10 +40,8 @@ fn it_alu_32() {
     test_alu("cmp", 0x00F0F0F0, 0xCADEDEAD, true);
     // Should sub to 0
     test_alu_with_value("cmp", 0xCADEDEAD, 0xCADEDEAD, 0xCADEDEAD, true, true, false);
-    // Should not set carry
-    test_alu_with_value(
-        "cmp", 0xCADFDEAD, 0xCADEDEAD, 0xCADEDEAD, true, false, false,
-    );
+    // Should set carry
+    test_alu_with_value("cmp", 0xCADFDEAD, 0xCADEDEAD, 0xCADEDEAD, true, false, true);
 
     // BIT tests
     // Should AND to 0
@@ -115,9 +113,9 @@ fn it_alu_logic_double_reg() {
     test_alu_with_target(
         "cmp", "r1,r2", 0xCADEDEAD, 0xCADEDEAD, 0xCADEDEAD, true, false,
     );
-    // Should not set carry
+    // Should not carry
     test_alu_with_target(
-        "cmp", "r1,r2", 0xCADEDEAD, 0xCADFDEAD, 0xCADEDEAD, false, false,
+        "cmp", "r1,r2", 0xCADEDEAD, 0xCADFDEAD, 0xCADEDEAD, false, true,
     );
 
     // BIT tests

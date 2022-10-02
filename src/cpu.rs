@@ -411,7 +411,26 @@ impl CPU {
                     y_value = self.ram.mem_read_byte(y_address);
                 }
             }
-            0x3A..=0x3D => todo!("{inst_prefix_byte}"),
+            0x3A..=0x3D | 0x3F => {
+                // pmpw Rx,Ry | pmpr Rx,Ry | pmpbw Rx,Ry | xfill Rx,Ry | rfill Rx,Ry
+                // Unimplemented
+                self.set_instruction_string(
+                    match inst_prefix_byte {
+                        0x3A => "pmpw",
+                        0x3B => "pmpr",
+                        0x3C => "pmpbw",
+                        0x3D => "xfill",
+                        0x3F => "rfill",
+                        _ => unreachable!(),
+                    },
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                );
+            }
             0x3E => {
                 // div Rx,Ry
                 let reg_x = self.get_reg(reg_x_index);

@@ -1,8 +1,10 @@
 use std::{
+    ffi::OsStr,
     fmt::Display,
     fs::File,
     io::{self, Read},
     ops::{Shl, Shr},
+    path::Path,
 };
 
 use crate::{
@@ -586,6 +588,171 @@ impl CPU {
                     InstructionKind::None,
                 );
             }
+            0x48 => {
+                // uivisible Rx,Ry
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+                self.logs
+                    .push(format!("Sim: UIVISIBLE Rx: {reg_x} Ry: {reg_y}"));
+
+                self.set_instruction_string(
+                    "uivisible",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
+            0x49 => {
+                // gettime Rx
+                // Unimplemented
+                self.logs.push(format!("Sim: GETTIME"));
+
+                self.set_instruction_string(
+                    "gettime",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                )
+            }
+            0x50 => {
+                // adjfs Rx,Ry
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                self.logs.push(format!(
+                    "Sim: Adjusting size of file {reg_x:#X} to {reg_y:#X}"
+                ));
+
+                self.set_instruction_string(
+                    "adjfs",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
+            0x51 => {
+                // adjfo Rx,Ry
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                self.logs.push(format!(
+                    "Sim: Adjusting offset of file {reg_x:#X} to {reg_y:#X}"
+                ));
+
+                self.set_instruction_string(
+                    "adjfo",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
+            0x52 => {
+                // adjlp Rx,Ry
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                self.logs.push(format!(
+                    // TODO: What does this mean
+                    "Sim: Adjusting pmp address of file {reg_x:#X} to {reg_y:#X}"
+                ));
+
+                self.set_instruction_string(
+                    "adjlp",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
+            0x53 => {
+                // loadf Rx
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+
+                // Always indicate success
+                self.zero = true;
+
+                self.logs
+                    .push(format!("Sim: Loading file {reg_x:#X} into FPGA"));
+
+                self.set_instruction_string(
+                    "loadf",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                )
+            }
+            0x54 | 0x55 => {
+                // gettext Rx,Ry | getname Rx,Ry
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index) as usize;
+
+                let is_extension = inst_prefix_byte == 0x54;
+
+                let content =
+                    if let Some(slot) = self.file_state.slots.iter().find(|s| s.id == reg_x) {
+                        if is_extension {
+                            Path::new(&slot.filename)
+                                .extension()
+                                .and_then(OsStr::to_str)
+                                .expect("Could not get extension")
+                        } else {
+                            Path::new(&slot.filename)
+                                .file_name()
+                                .and_then(OsStr::to_str)
+                                .expect("Could not get name")
+                        }
+                    } else {
+                        ""
+                    };
+
+                let chars: Vec<char> = content.chars().collect();
+
+                for i in 0..content.len() {
+                    let byte = chars[i];
+                    self.ram.mem_write_byte(
+                        (reg_y + i).to_lower_word(),
+                        byte.try_into()
+                            .expect(&format!("Could not convert char to ascii {byte}")),
+                    );
+                }
+                // Write null terminator
+                self.ram
+                    .mem_write_byte((reg_y + content.len()).to_lower_word(), 0);
+
+                self.logs.push(if is_extension {
+                    format!("Sim: Getting file extension of {reg_x:#X}: {content}")
+                } else {
+                    format!("Sim: Getting file name of {reg_x:#X}: {content}")
+                });
+
+                self.set_instruction_string(
+                    if is_extension { "gettext" } else { "getname" },
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
             0x56 => {
                 // open Rx,Ry
                 self.set_instruction_string(
@@ -601,7 +768,7 @@ impl CPU {
                 if let FileLoadedState::Loaded { slot, .. } = self.file_state.loaded {
                     // File already open, error
                     self.logs
-                        .push(format!("Sim: A file (slot {slot}) is already open"));
+                        .push(format!("Sim: A file (slot {slot:#X}) is already open"));
 
                     return self.jump_to_error();
                 }
@@ -630,14 +797,15 @@ impl CPU {
                         self.zero = false;
                         self.set_reg(reg_y_index, 0);
 
-                        self.logs.push(format!("Sim: File could not be loaded"));
+                        self.logs
+                            .push(format!("Sim: File {reg_x:#X} could not be loaded"));
                     }
                 } else {
                     // No slot found, set error
                     self.zero = false;
                     self.set_reg(reg_y_index, 0);
 
-                    self.logs.push(format!("Sim: Slot {reg_x} not found"));
+                    self.logs.push(format!("Sim: Slot {reg_x:#X} not found"));
                 }
             }
             0x57 => {
@@ -744,6 +912,82 @@ impl CPU {
 
                     return self.jump_to_error();
                 }
+            }
+            0x5A => {
+                // copy Rx,Ry
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                // Always indicate success
+                self.zero = true;
+
+                self.logs.push(format!(
+                    "Sim: Copying {reg_y:#X} bytes to address {reg_x:#X} in FPGA"
+                ));
+
+                self.set_instruction_string(
+                    "copy",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
+            0x5B => {
+                // core Rx
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+
+                self.logs.push(format!("Sim: Selected core {reg_x:#X}"));
+
+                self.set_instruction_string(
+                    "core",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                )
+            }
+            0x5C => {
+                // host Rx,Ry
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                self.logs.push(format!(
+                    "Sim: Performing command {reg_x:#X} with parameter {reg_y:#X} in FPGA"
+                ));
+
+                self.set_instruction_string(
+                    "host",
+                    InstructionKind::DoubleReg {
+                        x: reg_x_index,
+                        y: reg_y_index,
+                        mem_direction_into_reg: None,
+                        size: None,
+                    },
+                )
+            }
+            0x5D => {
+                // queryslot Rx
+                // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+
+                // Always indicate success
+                self.zero = true;
+
+                self.logs.push(format!("Sim: Queried slot {reg_x:#X}"));
+
+                self.set_instruction_string(
+                    "queryslot",
+                    InstructionKind::SingleReg {
+                        x: reg_x_index,
+                        size: None,
+                    },
+                )
             }
             _ => {
                 match inst_prefix_upper_nibble {

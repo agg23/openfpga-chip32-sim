@@ -22,6 +22,10 @@ struct Args {
     /// The data slot file to load
     #[clap(short, long, value_parser)]
     data_json: Option<String>,
+
+    /// The data slot to load and put into R0
+    #[clap(short = 's', long, value_parser)]
+    data_slot: Option<u32>,
 }
 
 fn main() -> Result<(), io::Error> {
@@ -36,7 +40,7 @@ fn main() -> Result<(), io::Error> {
         Some(data.data.data_slots)
     });
 
-    let state = CPU::load_file(&args.bin, slots)?;
+    let state = CPU::load_file(&args.bin, slots, args.data_slot)?;
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

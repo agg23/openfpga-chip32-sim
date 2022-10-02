@@ -898,7 +898,7 @@ impl CPU {
     ) {
         let reg_y_index = (inst_suffix_byte >> 4) & 0xF;
 
-        let (value, reg_x_index) = if is_register {
+        let (input_value, reg_x_index) = if is_register {
             // Register
             (self.get_reg(reg_y_index), inst_suffix_byte & 0xF)
         } else {
@@ -910,7 +910,7 @@ impl CPU {
             }
         };
 
-        let (value, carry) = operation(self.get_reg(reg_x_index), value);
+        let (value, carry) = operation(self.get_reg(reg_x_index), input_value);
 
         if save_output {
             self.set_reg(reg_x_index, value);
@@ -932,7 +932,7 @@ impl CPU {
             } else {
                 InstructionKind::Immediate {
                     x: reg_x_index,
-                    n: value,
+                    n: input_value,
                     size: None,
                 }
             },

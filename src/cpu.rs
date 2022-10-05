@@ -883,6 +883,9 @@ impl CPU {
                         self.set_reg(reg_y_index, len);
 
                         self.zero = true;
+
+                        self.logs
+                            .push(format!("Sim: Opened file {reg_x:#X} of length {len:#X}"));
                     } else {
                         // File could not be loaded, set error
                         self.zero = false;
@@ -1012,6 +1015,9 @@ impl CPU {
 
                 // Always indicate success
                 self.zero = true;
+                if let FileLoadedState::Loaded { ref mut offset, .. } = self.file_state.loaded {
+                    *offset += reg_y as usize;
+                }
 
                 self.logs.push(format!(
                     "Sim: Copying {reg_y:#X} bytes to address {reg_x:#X} in FPGA"

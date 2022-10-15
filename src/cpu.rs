@@ -414,15 +414,56 @@ impl CPU {
             0x3A..=0x3D | 0x3F => {
                 // pmpw Rx,Ry | pmpr Rx,Ry | pmpbw Rx,Ry | xfill Rx,Ry | rfill Rx,Ry
                 // Unimplemented
+                let reg_x = self.get_reg(reg_x_index);
+                let reg_y = self.get_reg(reg_y_index);
+
+                let name = match inst_prefix_byte {
+                    0x3A => {
+                        self.logs.push(format!(
+                            "Sim: pmpw write {reg_y:#X} to FPGA memory at {reg_x:#X}"
+                        ));
+
+                        "pmpw"
+                    }
+                    0x3B => {
+                        self.logs
+                            .push(format!("Sim: pmpr read from FPGA memory at {reg_x:#X}"));
+
+                        "pmpr"
+                    }
+                    0x3C => {
+                        self.logs.push(format!(
+                            "Sim: pmpbw write bytes {reg_y:#X} to FPGA memory at {reg_x:#X}"
+                        ));
+
+                        "pmpbw"
+                    }
+                    0x3D => {
+                        let length = reg_y & 0xFFFFFF;
+                        let fill = (reg_y & 0xFF000000) >> 24;
+
+                        let last_address = reg_x + length;
+
+                        self.logs.push(format!(
+                            "Sim: xfill filled bytes from {reg_x:#X} to {last_address:#X} (length {length:#X}), filling with {fill:#X}"
+                        ));
+
+                        "xfill"
+                    }
+                    0x3F => {
+                        let last_address = reg_x + reg_y;
+
+                        self.logs.push(format!(
+                            "Sim: rfill filled bytes from {reg_x:#X} to {last_address:#X} (length {reg_y:#X}), filling with random data"
+                        ));
+
+                        "rfill"
+                    }
+                    _ => unreachable!(),
+                };
+
                 self.set_instruction_string(
-                    match inst_prefix_byte {
-                        0x3A => "pmpw",
-                        0x3B => "pmpr",
-                        0x3C => "pmpbw",
-                        0x3D => "xfill",
-                        0x3F => "rfill",
-                        _ => unreachable!(),
-                    },
+                    name,
                     InstructionKind::DoubleReg {
                         x: reg_x_index,
                         y: reg_y_index,

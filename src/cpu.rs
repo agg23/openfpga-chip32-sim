@@ -832,7 +832,7 @@ impl CPU {
                 )
             }
             0x54 | 0x55 => {
-                // gettext Rx,Ry | getname Rx,Ry
+                // getext Rx,Ry | getname Rx,Ry
                 let reg_x = self.get_reg(reg_x_index);
                 let reg_y = self.get_reg(reg_y_index) as usize;
 
@@ -845,14 +845,16 @@ impl CPU {
                                 .extension()
                                 .and_then(OsStr::to_str)
                                 .expect("Could not get extension")
+                                .to_ascii_uppercase()
                         } else {
                             Path::new(&slot.filename)
                                 .file_name()
                                 .and_then(OsStr::to_str)
                                 .expect("Could not get name")
+                                .to_string()
                         }
                     } else {
-                        ""
+                        "".into()
                     };
 
                 let chars: Vec<char> = content.chars().collect();
@@ -876,7 +878,7 @@ impl CPU {
                 });
 
                 self.set_instruction_string(
-                    if is_extension { "gettext" } else { "getname" },
+                    if is_extension { "getext" } else { "getname" },
                     InstructionKind::DoubleReg {
                         x: reg_x_index,
                         y: reg_y_index,

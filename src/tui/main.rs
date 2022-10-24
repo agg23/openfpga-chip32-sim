@@ -96,6 +96,10 @@ pub fn render_main<B: Backend>(
     let logs: Vec<ListItem> = state
         .logs
         .iter()
+        .rev()
+        // Remove 2 lines, one for top, one for bottom
+        .take(side_chunks[1].height as usize - 2)
+        .rev()
         .map(|l| ListItem::new(vec![Spans::from(Span::raw(l))]))
         .collect();
 

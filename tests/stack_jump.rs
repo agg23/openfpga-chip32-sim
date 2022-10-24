@@ -61,6 +61,16 @@ fn it_jump() {
 }
 
 #[test]
+fn it_supports_high_nibble() {
+    test_stack("jp", "0x10", 0, 0, false, false, 0x10, 0);
+    test_stack("jp", "0x100", 0, 0, false, false, 0x100, 0);
+    test_stack("jp", "0x400", 0, 0, false, false, 0x400, 0);
+    test_stack("jp", "0x800", 0, 0, false, false, 0x800, 0);
+    test_stack("jp", "0x1004", 0, 0, false, false, 0x1004, 0);
+    test_stack("jp", "0x8004", 0, 0, false, false, 0x4, 0);
+}
+
+#[test]
 fn it_call() {
     let cpu = test_stack("call", "0x10", 0, 0, false, false, 0x10, 1);
     assert_eq!(cpu.stack[0], 0x4);

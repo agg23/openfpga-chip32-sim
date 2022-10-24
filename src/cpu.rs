@@ -1406,7 +1406,7 @@ impl CPU {
         conditional: T,
     ) {
         let inst_prefix_byte = inst_prefix_byte & 0xF;
-        let highest_nibble = ((inst_prefix_byte as u16) << 4) & 0xF00;
+        let highest_nibble = ((inst_prefix_byte as u16) << 8) & 0xF00;
 
         let address = highest_nibble | (inst_suffix_byte as u16);
         let address = address * 2;

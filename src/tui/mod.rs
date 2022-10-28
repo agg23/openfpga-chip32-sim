@@ -10,7 +10,7 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-use chip32_sim::cpu::CPU;
+use chip32_sim::cpu::{HaltState, CPU};
 
 use self::{
     main::render_main,
@@ -60,6 +60,32 @@ pub fn run_app<B: Backend>(
                             // TODO: This is inefficient, but easy
                             state = next_state.clone();
                             next_state.step();
+                        }
+                        "r" | "run" => {
+                            let mut count = 0;
+
+                            app.input = String::new();
+
+                            loop {
+                                let mut terminate = false;
+
+                                if let HaltState::Running = state.halt {
+                                    if count > 10000 {
+                                        terminate = true;
+                                    }
+
+                                    count += 1;
+                                } else {
+                                    terminate = true;
+                                }
+
+                                if terminate {
+                                    break;
+                                }
+
+                                state = next_state.clone();
+                                next_state.step();
+                            }
                         }
                         "m" => {
                             if let DisplayMode::Input(..) = app.display_mode {
@@ -178,6 +204,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU, next_state: &CPU
         Spans::from(vec![
             Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" to quit"),
+            Span::raw("                    "),
+            Span::styled("r", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to run until program end"),
         ]),
     ]);
 

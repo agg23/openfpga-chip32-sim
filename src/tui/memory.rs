@@ -35,7 +35,7 @@ pub fn render_memory<B: Backend>(
                 Cell::from(format!("{address:08X}"))
             } else {
                 let address = address + j - 1;
-                let data = state.ram.mem_read_byte(address);
+                let data = state.ram.read_byte(address);
 
                 Cell::from(format!("{data:02X}"))
             }

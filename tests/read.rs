@@ -9,7 +9,7 @@ mod util;
 fn it_should_read() {
     let cpu = test_read("read", "0", "0x10", "0x20", "0x10");
     assert_eq!(cpu.zero, true);
-    assert_eq!(cpu.ram.mem_read_byte(0x20), 0x10);
+    assert_eq!(cpu.ram.read_byte(0x20), 0x10);
 }
 
 #[test]

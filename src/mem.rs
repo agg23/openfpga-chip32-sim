@@ -19,13 +19,13 @@ impl Memory {
         }
     }
 
-    pub fn mem_read_byte(&self, address: u16) -> u8 {
+    pub fn read_byte(&self, address: u16) -> u8 {
         let address = address as usize;
 
         self.ram[address]
     }
 
-    pub fn mem_read_word(&self, address: u16) -> u16 {
+    pub fn read_word(&self, address: u16) -> u16 {
         let address = address as usize;
 
         u16::from_le_bytes(
@@ -35,7 +35,7 @@ impl Memory {
         )
     }
 
-    pub fn mem_read_long(&self, address: u16) -> u32 {
+    pub fn read_long(&self, address: u16) -> u32 {
         let address = address as usize;
 
         u32::from_le_bytes(
@@ -46,7 +46,7 @@ impl Memory {
     }
 
     // TODO: Log message when you clobber the ROM data
-    pub fn mem_write_byte(&mut self, address: u16, byte: u8) {
+    pub fn write_byte(&mut self, address: u16, byte: u8) {
         let address = address as usize;
 
         if address < self.rom_size {
@@ -56,7 +56,7 @@ impl Memory {
         self.ram[address] = byte;
     }
 
-    pub fn mem_write_word(&mut self, address: u16, word: u16) {
+    pub fn write_word(&mut self, address: u16, word: u16) {
         let address = address as usize;
 
         if address < self.rom_size {
@@ -69,7 +69,7 @@ impl Memory {
         self.ram[address + 1] = upper;
     }
 
-    pub fn mem_write_long(&mut self, address: u16, word: u32) {
+    pub fn write_long(&mut self, address: u16, word: u32) {
         let address = address as usize;
 
         if address < self.rom_size {

@@ -12,9 +12,10 @@ The TUI currently isn't as polished as I would like, and as such it doesn't disp
 
 | Input          | Action                                                                                                  |
 |----------------|---------------------------------------------------------------------------------------------------------|
+| **r**          | Run program to the end                                                                                  |
 | **s**          | Step through this instruction to the next                                                               |
-| **m**          | Switch the display mode to/from memory. Arrow keys up/down will allow you to scroll memory when visible |
-| **q**/**quit** | Quit the simulator                                                                                      |
+| **m [address]**| Switch the display mode to/from memory. Arrow keys up/down will allow you to scroll memory when visible |
+| **q**          | Quit the simulator                                                                                      |
 
 ## Example
 

@@ -41,7 +41,7 @@ fn test_load(command: &str, target: &str, data: &str, result: u32, mem_result: b
             assert_eq!(cpu.zero, false);
             assert_eq!(cpu.carry, false);
             if mem_result {
-                assert_eq!(cpu.ram.mem_read_long(0x20), result);
+                assert_eq!(cpu.ram.read_long(0x20), result);
             } else {
                 assert_eq!(cpu.work_regs[1], result);
             }

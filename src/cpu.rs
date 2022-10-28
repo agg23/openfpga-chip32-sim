@@ -124,6 +124,14 @@ impl CPU {
             return;
         }
 
+        if self.pc >= 0x2000 {
+            // We ran off of the end of memory. Halt
+            self.halt = HaltState::Failure;
+
+            self.logs.push(format!("ERROR: Overran memory. Halting"));
+            return;
+        }
+
         self.formatted_instruction = String::new();
 
         let inst_word = self.pc_word();
@@ -371,8 +379,8 @@ impl CPU {
 
                 let mut x_address = reg_x;
                 let mut y_address = reg_y;
-                let mut x_value = self.ram.mem_read_byte(reg_x);
-                let mut y_value = self.ram.mem_read_byte(reg_y);
+                let mut x_value = self.ram.read_byte(reg_x);
+                let mut y_value = self.ram.read_byte(reg_y);
 
                 loop {
                     if x_value == 0 && y_value == 0 {
@@ -407,8 +415,8 @@ impl CPU {
                         return;
                     }
 
-                    x_value = self.ram.mem_read_byte(x_address);
-                    y_value = self.ram.mem_read_byte(y_address);
+                    x_value = self.ram.read_byte(x_address);
+                    y_value = self.ram.read_byte(y_address);
                 }
             }
             0x3A..=0x3D | 0x3F => {
@@ -510,12 +518,12 @@ impl CPU {
                 let mut string_bytes = Vec::new();
 
                 let mut count = 1;
-                let mut byte = self.ram.mem_read_byte(address);
+                let mut byte = self.ram.read_byte(address);
                 // Max at 255 chars, and stop at nullchar
                 while count < 256 && byte != 0 {
                     string_bytes.push(byte);
 
-                    byte = self.ram.mem_read_byte(address + count);
+                    byte = self.ram.read_byte(address + count);
                     count += 1;
                 }
 
@@ -861,7 +869,7 @@ impl CPU {
 
                 for i in 0..content.len() {
                     let byte = chars[i];
-                    self.ram.mem_write_byte(
+                    self.ram.write_byte(
                         (reg_y + i).to_lower_word(),
                         byte.try_into()
                             .expect(&format!("Could not convert char to ascii {byte}")),
@@ -869,7 +877,7 @@ impl CPU {
                 }
                 // Write null terminator
                 self.ram
-                    .mem_write_byte((reg_y + content.len()).to_lower_word(), 0);
+                    .write_byte((reg_y + content.len()).to_lower_word(), 0);
 
                 self.logs.push(if is_extension {
                     format!("Sim: Getting file extension of {reg_x:#X}: {content}")
@@ -1038,7 +1046,7 @@ impl CPU {
 
                     for i in 0..reg_y {
                         let byte = data[*offset + i];
-                        self.ram.mem_write_byte((reg_x + i).to_lower_word(), byte);
+                        self.ram.write_byte((reg_x + i).to_lower_word(), byte);
                     }
 
                     self.zero = true;
@@ -1231,15 +1239,15 @@ impl CPU {
 
         if write_mem {
             match size {
-                DataSize::Byte => self.ram.mem_write_byte(address, reg_x.to_le_bytes()[0]),
-                DataSize::Word => self.ram.mem_write_word(address, reg_x.to_lower_word()),
-                DataSize::Long => self.ram.mem_write_long(address, reg_x),
+                DataSize::Byte => self.ram.write_byte(address, reg_x.to_le_bytes()[0]),
+                DataSize::Word => self.ram.write_word(address, reg_x.to_lower_word()),
+                DataSize::Long => self.ram.write_long(address, reg_x),
             }
         } else {
             let value = match size {
-                DataSize::Byte => self.ram.mem_read_byte(address).into(),
-                DataSize::Word => self.ram.mem_read_word(address).into(),
-                DataSize::Long => self.ram.mem_read_long(address),
+                DataSize::Byte => self.ram.read_byte(address).into(),
+                DataSize::Word => self.ram.read_word(address).into(),
+                DataSize::Long => self.ram.read_long(address),
             };
 
             self.set_reg(reg_x_index, value);
@@ -1501,7 +1509,7 @@ impl CPU {
     // }
 
     fn pc_word(&mut self) -> u16 {
-        let value = self.ram.mem_read_word(self.pc);
+        let value = self.ram.read_word(self.pc);
 
         self.pc += 2;
 
@@ -1509,7 +1517,7 @@ impl CPU {
     }
 
     fn pc_long(&mut self) -> u32 {
-        let value = self.ram.mem_read_long(self.pc);
+        let value = self.ram.read_long(self.pc);
 
         self.pc += 4;
 

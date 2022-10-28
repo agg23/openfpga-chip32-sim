@@ -37,15 +37,26 @@ pub fn run_app<B: Backend>(
 
         if let Event::Key(key) = event::read()? {
             if key.code == KeyCode::Esc {
-                // Go to input
-                app.display_mode = DisplayMode::Input(TableState::default());
-                app.input = String::new();
+                let mut did_esc = false;
+
+                if let DisplayMode::Memory { .. } = app.display_mode {
+                    if app.input.len() > 0 {
+                        app.input = String::new();
+                        did_esc = true;
+                    }
+                }
+
+                if !did_esc {
+                    // Go to input
+                    app.display_mode = DisplayMode::Input(TableState::default());
+                    app.input = String::new();
+                }
             }
 
             match key.code {
                 KeyCode::Enter => {
                     match app.input.as_str() {
-                        "s" => {
+                        "s" | "step" => {
                             // TODO: This is inefficient, but easy
                             state = next_state.clone();
                             next_state.step();
@@ -66,7 +77,22 @@ pub fn run_app<B: Backend>(
                             // Quit
                             return Ok(());
                         }
-                        _ => {}
+                        input => {
+                            if input.starts_with("m ") {
+                                let input = &input[2..];
+                                let address = u16::from_str_radix(input, 16).unwrap_or_else(|_| 0);
+
+                                let address = if address > 15 {
+                                    (address - 15) & !15
+                                } else {
+                                    0
+                                };
+                                app.display_mode = DisplayMode::Memory {
+                                    address,
+                                    state: TableState::default(),
+                                };
+                            }
+                        }
                     }
                 }
                 KeyCode::Char(c) => {
@@ -81,7 +107,7 @@ pub fn run_app<B: Backend>(
                         state: _,
                     } = app.display_mode
                     {
-                        if *address > 16 {
+                        if *address >= 16 {
                             *address -= 16;
                         }
                     }

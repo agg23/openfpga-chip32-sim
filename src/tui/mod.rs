@@ -3,7 +3,8 @@ use std::io;
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
     widgets::{Block, Borders, Paragraph, TableState},
     Frame, Terminal,
 };
@@ -109,10 +110,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU, next_state: &CPU
         .margin(2)
         .constraints(
             [
-                Constraint::Percentage(80),
+                Constraint::Percentage(76),
                 Constraint::Length(1),
                 Constraint::Length(3),
-                Constraint::Min(1),
+                Constraint::Length(2),
             ]
             .as_ref(),
         )
@@ -139,4 +140,20 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App, state: &CPU, next_state: &CPU
         // Move one line down, from the border to the input line
         chunks[2].y + 1,
     );
+
+    let info_paragraph = Paragraph::new(vec![
+        Spans::from(vec![
+            Span::styled("s", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to step one instruction"),
+            Span::raw("    "),
+            Span::styled("m [address]", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to view memory at address"),
+        ]),
+        Spans::from(vec![
+            Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to quit"),
+        ]),
+    ]);
+
+    f.render_widget(info_paragraph, chunks[3]);
 }

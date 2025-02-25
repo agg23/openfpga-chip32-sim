@@ -5,10 +5,13 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{fs, io};
+use std::{fs, io, process};
 
 use crate::tui::run_app;
-use chip32_sim::{apf::DataJson, cpu::CPU};
+use chip32_sim::{
+    apf::DataJson,
+    cpu::{HaltState, CPU},
+};
 
 mod tui;
 
@@ -23,10 +26,13 @@ struct Args {
     #[clap(short, long, value_parser)]
     data_json: Option<String>,
 
-    /// Override the default data slot to load and put into R0.
-    /// Per the docs this defaults to the ID of data slot 0 from --data-json
+    /// Override the default data slot to load and put into R0. Per the docs this defaults to the ID of data slot 0 from --data-json
     #[clap(short = 's', long, value_parser)]
     data_slot: Option<u32>,
+
+    /// Run the program directly, without any GUI. Useful for testing
+    #[clap(long)]
+    disable_gui: bool,
 }
 
 fn main() -> Result<(), io::Error> {
@@ -41,7 +47,34 @@ fn main() -> Result<(), io::Error> {
         Some(data.data.data_slots)
     });
 
-    let state = CPU::load_file(&args.bin, slots, args.data_slot)?;
+    let mut state = CPU::load_file(&args.bin, slots, args.data_slot)?;
+
+    if args.disable_gui {
+        let mut log_length = 0;
+        // No GUI, just run up to 1 million cycles
+        for _ in 0..1_000_000 {
+            state.step();
+
+            if state.logs.len() > log_length {
+                state
+                    .logs
+                    .iter()
+                    .skip(log_length)
+                    .for_each(|log| println!("{log}"));
+                log_length = state.logs.len();
+            }
+
+            match state.halt {
+                HaltState::Success => process::exit(0),
+                HaltState::Failure => process::exit(1),
+                _ => {}
+            }
+        }
+
+        println!("Process did not terminate");
+
+        process::exit(2);
+    }
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -59,7 +92,7 @@ fn main() -> Result<(), io::Error> {
     terminal.show_cursor()?;
 
     if let Err(err) = res {
-        println!("{:?}", err)
+        println!("{:?}", err);
     }
 
     Ok(())

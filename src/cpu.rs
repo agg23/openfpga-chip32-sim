@@ -1635,24 +1635,34 @@ impl CPU {
     pub fn load_file(
         path_str: &str,
         data_slots: Option<Vec<DataSlot>>,
-        selected_slot: Option<u32>,
+        slot_override: Option<u32>,
     ) -> Result<Self, io::Error> {
         let buffer = file_to_buffer(path_str)?;
 
-        let (data_slots, r0_index) = if let Some(slots) = data_slots {
-            let index = if let Some(selected_slot) = selected_slot {
-                selected_slot
+        let (data_slots, default_slot) = if let Some(result) = data_slots.and_then(|vec| {
+            if let Some(first) = vec.iter().next() {
+                Some((vec.clone(), Some(first.id)))
             } else {
-                0
-            };
-
-            (slots, index)
+                None
+            }
+        }) {
+            result
         } else {
-            (Vec::new(), 0)
+            (Vec::new(), None)
+        };
+
+        let selected_slot = if let Some(slot_override) = slot_override {
+            slot_override
+        } else if let Some(default_slot) = default_slot {
+            // Slot from first `data.json` entry
+            default_slot
+        } else {
+            // Default to 0 if there is no information
+            0
         };
 
         let mut work_regs = [0; 16];
-        work_regs[0] = r0_index;
+        work_regs[0] = selected_slot;
 
         Ok(CPU {
             pc: 0x2,

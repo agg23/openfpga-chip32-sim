@@ -23,7 +23,8 @@ struct Args {
     #[clap(short, long, value_parser)]
     data_json: Option<String>,
 
-    /// The data slot to load and put into R0
+    /// Override the default data slot to load and put into R0.
+    /// Per the docs this defaults to the ID of data slot 0 from --data-json
     #[clap(short = 's', long, value_parser)]
     data_slot: Option<u32>,
 }

@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs};
+use std::collections::HashMap;
 
-use chip32_sim::{apf::DataJson, cpu::CPU};
+use chip32_sim::{apf::parse_json, cpu::CPU};
 use util::test_command;
 
 mod util;
@@ -33,13 +33,7 @@ fn test_read(command: &str, slot: &str, seek: &str, output: &str, length: &str) 
         ]),
         7,
         |cpu| {
-            let json =
-                fs::read_to_string("tests/data.json").expect("Could not find data slot JSON file");
-
-            let data = serde_json::from_str::<DataJson>(&json)
-                .expect("Could not parse data slot JSON file");
-
-            cpu.file_state.slots = data.data.data_slots;
+            cpu.file_state.slots = parse_json("tests/data.json");
         },
         |_| {},
     )

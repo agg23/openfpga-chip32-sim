@@ -5,11 +5,11 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{fs, io, process};
+use std::{io, process};
 
 use crate::tui::run_app;
 use chip32_sim::{
-    apf::DataJson,
+    apf::parse_json,
     cpu::{HaltState, CPU},
 };
 
@@ -38,14 +38,9 @@ struct Args {
 fn main() -> Result<(), io::Error> {
     let args = Args::parse();
 
-    let slots = args.data_json.map_or(None, |json_path| {
-        let json = fs::read_to_string(json_path).expect("Could not find data slot JSON file");
-
-        let data =
-            serde_json::from_str::<DataJson>(&json).expect("Could not parse data slot JSON file");
-
-        Some(data.data.data_slots)
-    });
+    let slots = args
+        .data_json
+        .map_or(None, |json_path| Some(parse_json(&json_path)));
 
     let mut state = CPU::load_file(&args.bin, slots, args.data_slot)?;
 

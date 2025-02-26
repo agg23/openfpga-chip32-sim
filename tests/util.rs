@@ -21,6 +21,8 @@ pub fn test_command<TS: FnOnce(&mut CPU) -> (), TA: FnOnce(&CPU) -> ()>(
         cpu.step();
     }
 
+    cpu.logs.iter().for_each(|log| println!("{log}"));
+
     assertions(&cpu);
 
     cpu

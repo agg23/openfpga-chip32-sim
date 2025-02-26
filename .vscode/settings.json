@@ -1,5 +1,5 @@
 {
-  "rust-analyzer.runnableEnv": {
+  "rust-analyzer.runnables.extraEnv": {
     "BASS_PATH": "../bass_chip32/bass"
   }
 }

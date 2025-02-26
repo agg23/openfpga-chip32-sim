@@ -6,7 +6,7 @@
         "name": "Main",
         "id": 0,
         "required": true,
-        "filename": "tests/read_sample.bin2"
+        "filename": "read_sample.bin2"
       }
     ]
   }

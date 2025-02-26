@@ -5,12 +5,13 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use serde::Serialize;
 use std::{io, process};
 
 use crate::tui::run_app;
 use chip32_sim::{
     apf::parse_json,
-    cpu::{HaltState, CPU},
+    cpu::{FileLoadedState, HaltState, CPU},
 };
 
 mod tui;
@@ -30,9 +31,16 @@ struct Args {
     #[clap(short = 's', long, value_parser)]
     data_slot: Option<u32>,
 
-    /// Run the program directly, without any GUI. Useful for testing
+    /// Execute the simulation in JSON output mode
     #[clap(long)]
-    disable_gui: bool,
+    json: bool,
+}
+
+#[derive(Serialize)]
+struct JSONOutput {
+    core: Option<usize>,
+    logs: Vec<String>,
+    file_state: FileLoadedState,
 }
 
 fn main() -> Result<(), io::Error> {
@@ -42,33 +50,14 @@ fn main() -> Result<(), io::Error> {
         .data_json
         .map_or(None, |json_path| Some(parse_json(&json_path)));
 
-    let mut state = CPU::load_file(&args.bin, slots, args.data_slot)?;
+    let mut cpu = CPU::load_file(&args.bin, slots, args.data_slot)?;
 
-    if args.disable_gui {
-        let mut log_length = 0;
-        // No GUI, just run up to 1 million cycles
-        for _ in 0..1_000_000 {
-            state.step();
+    if args.json {
+        let exit_code = execute_with_json(&mut cpu);
 
-            if state.logs.len() > log_length {
-                state
-                    .logs
-                    .iter()
-                    .skip(log_length)
-                    .for_each(|log| println!("{log}"));
-                log_length = state.logs.len();
-            }
+        println!("{}", build_json_output(&cpu));
 
-            match state.halt {
-                HaltState::Success => process::exit(0),
-                HaltState::Failure => process::exit(1),
-                _ => {}
-            }
-        }
-
-        println!("Process did not terminate");
-
-        process::exit(2);
+        process::exit(exit_code as i32);
     }
 
     enable_raw_mode()?;
@@ -79,7 +68,7 @@ fn main() -> Result<(), io::Error> {
 
     // create app and run it
     let app = App::default();
-    let res = run_app(&mut terminal, app, state);
+    let res = run_app(&mut terminal, app, cpu);
 
     // restore terminal
     disable_raw_mode()?;
@@ -91,4 +80,30 @@ fn main() -> Result<(), io::Error> {
     }
 
     Ok(())
+}
+
+fn execute_with_json(cpu: &mut CPU) -> usize {
+    // No GUI, just run up to 1 million cycles
+    for _ in 0..1_000_000 {
+        cpu.step();
+
+        match cpu.halt {
+            HaltState::Success => return 0,
+            HaltState::Failure => return 1,
+            _ => {}
+        }
+    }
+
+    // Did not terminate
+    return 2;
+}
+
+fn build_json_output(cpu: &CPU) -> String {
+    let output = JSONOutput {
+        core: cpu.active_bitstream,
+        logs: cpu.logs.clone(),
+        file_state: cpu.file_state.loaded.clone(),
+    };
+
+    return serde_json::to_string(&output).expect("Couldn't generate JSON output");
 }

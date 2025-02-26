@@ -7,6 +7,8 @@ use std::{
     path::Path,
 };
 
+use serde::Serialize;
+
 use crate::{
     apf::DataSlot,
     mem::Memory,
@@ -38,6 +40,7 @@ pub struct CPU {
 
     pub formatted_instruction: String,
     pub logs: Vec<String>,
+    pub active_bitstream: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -54,7 +57,7 @@ pub enum HaltState {
     Failure,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub enum FileLoadedState {
     None,
     Loaded {
@@ -1089,6 +1092,8 @@ impl CPU {
                 // Unimplemented
                 let reg_x = self.get_reg(reg_x_index);
 
+                self.active_bitstream = Some(reg_x as usize);
+
                 self.logs.push(format!("Sim: Selected core {reg_x:#X}"));
 
                 self.set_instruction_string(
@@ -1680,6 +1685,7 @@ impl CPU {
             halt: HaltState::Running,
             formatted_instruction: String::new(),
             logs: Vec::new(),
+            active_bitstream: None,
         })
     }
 }

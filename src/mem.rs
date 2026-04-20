@@ -1,12 +1,13 @@
 #[derive(Clone)]
 pub struct Memory {
-    ram: [u8; 8 * 1024],
+    ram: Box<[u8]>,
     rom_size: usize,
 }
 
 impl Memory {
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        let mut ram = [0; 8 * 1024];
+        const RAM_SIZE: usize = 8 * 1024;
+        let mut ram = vec![0; RAM_SIZE].into_boxed_slice();
 
         bytes
             .iter()

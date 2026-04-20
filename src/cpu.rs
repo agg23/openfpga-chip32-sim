@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ffi::OsStr,
     fmt::Display,
     fs::File,
@@ -31,6 +32,7 @@ pub struct CPU {
     pub zero: bool,
 
     pub ram: Memory,
+    pub initial_ram: Memory,
     // TODO: It is unclear if this should live in memory or separately, and unclear how large it should be
     pub stack: [u32; 32],
 
@@ -41,6 +43,7 @@ pub struct CPU {
     pub formatted_instruction: String,
     pub logs: Vec<String>,
     pub active_bitstream: Option<usize>,
+    pub ui_visible: HashMap<u32, bool>,
 }
 
 #[derive(Clone)]
@@ -273,7 +276,18 @@ impl CPU {
                     |reg, immediate| (reg & immediate, false),
                 )
             }
-            0x10 => todo!("RSET"),
+            0x10 => {
+                // rset #16
+                // The simulator does not currently model the hidden register-set state
+                // this instruction manipulates on hardware, but several real loaders
+                // use it as part of their boot epilogue. Consume the immediate and log
+                // the operation so those programs can continue.
+                let immediate = self.pc_word();
+
+                self.logs
+                    .push(format!("Sim: rset switched to register set {immediate:#X}"));
+                self.formatted_instruction = format!("rset #{immediate:#X}");
+            }
             0x11 => todo!("CRC"),
             0x20 => {
                 // asl Rx,Ry
@@ -718,26 +732,43 @@ impl CPU {
             }
             0x47 => {
                 // clc/sec
+                // Official docs describe only 0x4700 (CLC) and 0x4701 (SEC), but
+                // real vendor binaries also ship with 0x4703 at the start vector.
+                // Those binaries behave like SEC on hardware, so treat the low bit
+                // as authoritative and ignore the upper compatibility bits here.
                 let identifier = reg_x_index;
 
-                match identifier {
-                    0 => self.set_carry(false),
-                    1 => self.set_carry(true),
-                    _ => panic!("Unknown identifier {identifier} for 0x47"),
-                };
+                self.set_carry((identifier & 0x1) != 0);
 
                 self.set_instruction_string(
-                    if identifier == 0 { "clc" } else { "sec" },
+                    if (identifier & 0x1) == 0 {
+                        "clc"
+                    } else {
+                        "sec"
+                    },
                     InstructionKind::None,
                 );
             }
             0x48 => {
                 // uivisible Rx,Ry
-                // Unimplemented
                 let reg_x = self.get_reg(reg_x_index);
                 let reg_y = self.get_reg(reg_y_index);
-                self.logs
-                    .push(format!("Sim: UIVISIBLE Rx: {reg_x} Ry: {reg_y}"));
+                let visible = match reg_y {
+                    0 => {
+                        self.ui_visible.insert(reg_x, false);
+                        false
+                    }
+                    1 => {
+                        self.ui_visible.insert(reg_x, true);
+                        true
+                    }
+                    _ => self.ui_visible.get(&reg_x).copied().unwrap_or(true),
+                };
+                self.zero = visible;
+                self.logs.push(format!(
+                    "Sim: UIVISIBLE id {reg_x} mode {reg_y} visible {}",
+                    if visible { 1 } else { 0 }
+                ));
 
                 self.set_instruction_string(
                     "uivisible",
@@ -1052,6 +1083,7 @@ impl CPU {
                         self.ram.write_byte((reg_x + i).to_lower_word(), byte);
                     }
 
+                    *offset += reg_y;
                     self.zero = true;
                 } else {
                     // No open file, throw error
@@ -1669,6 +1701,8 @@ impl CPU {
         let mut work_regs = [0; 16];
         work_regs[0] = selected_slot;
 
+        let initial_ram = Memory::from_bytes(buffer);
+
         Ok(CPU {
             pc: 0x2,
             sp: 0,
@@ -1676,7 +1710,8 @@ impl CPU {
             error_pc_reg: 0,
             carry: false,
             zero: false,
-            ram: Memory::from_bytes(buffer),
+            ram: initial_ram.clone(),
+            initial_ram,
             stack: [0; 32],
             file_state: FileState {
                 slots: data_slots,
@@ -1686,7 +1721,27 @@ impl CPU {
             formatted_instruction: String::new(),
             logs: Vec::new(),
             active_bitstream: None,
+            ui_visible: HashMap::new(),
         })
+    }
+
+    pub fn restart_for_slot(&mut self, slot: u32) {
+        let mut preserved_regs = self.work_regs;
+        preserved_regs[0] = slot;
+
+        self.pc = 0x2;
+        self.sp = 0;
+        self.work_regs = preserved_regs;
+        self.error_pc_reg = 0;
+        self.carry = false;
+        self.zero = false;
+        self.ram = self.initial_ram.clone();
+        self.stack = [0; 32];
+        self.file_state.loaded = FileLoadedState::None;
+        self.halt = HaltState::Running;
+        self.formatted_instruction.clear();
+        self.logs
+            .push(format!("Sim: Restarting CHIP32 with reload slot {slot:#X}"));
     }
 }
 

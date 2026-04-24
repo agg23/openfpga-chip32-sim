@@ -288,7 +288,18 @@ impl CPU {
                     .push(format!("Sim: rset switched to register set {immediate:#X}"));
                 self.formatted_instruction = format!("rset #{immediate:#X}");
             }
-            0x11 => todo!("CRC"),
+            0x11 => {
+                // crc Rx,Ry,Rz,#n
+                let polynomial = self.pc_word();
+                let reg_z_index = (self.pc_word() & 0xF) as u8;
+                let address = self.get_reg(reg_x_index).to_lower_word();
+                let length = self.get_reg(reg_y_index);
+                let crc = self.crc16(address, length, self.get_reg(reg_z_index), polynomial);
+
+                self.set_reg(reg_z_index, crc.into());
+                self.formatted_instruction =
+                    format!("crc R{reg_x_index},R{reg_y_index},R{reg_z_index},#{polynomial:#X}");
+            }
             0x20 => {
                 // asl Rx,Ry
                 self.alu_double_value_inst("asl", inst_suffix_byte, true, false, |reg_x, reg_y| {
@@ -1537,13 +1548,26 @@ impl CPU {
         self.pc = 0;
     }
 
-    // fn pc_byte(&mut self) -> u8 {
-    //     let value = self.ram.mem_read_byte(self.pc);
+    fn crc16(&self, address: u16, length: u32, initial: u32, polynomial: u16) -> u16 {
+        let mut crc = initial.to_lower_word();
 
-    //     self.pc += 1;
+        for offset in 0..length {
+            let byte = self
+                .ram
+                .read_byte(address.wrapping_add(offset.to_lower_word()));
+            crc ^= (byte as u16) << 8;
 
-    //     value
-    // }
+            for _ in 0..8 {
+                crc = if (crc & 0x8000) != 0 {
+                    (crc << 1) ^ polynomial
+                } else {
+                    crc << 1
+                };
+            }
+        }
+
+        crc
+    }
 
     fn pc_word(&mut self) -> u16 {
         let value = self.ram.read_word(self.pc);

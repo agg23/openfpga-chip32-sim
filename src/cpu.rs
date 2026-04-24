@@ -19,6 +19,8 @@ use crate::{
     },
 };
 
+const STACK_SIZE: usize = 32;
+
 #[derive(Clone)]
 pub struct CPU {
     pub pc: u16,
@@ -33,8 +35,7 @@ pub struct CPU {
 
     pub ram: Memory,
     pub program_path: PathBuf,
-    // TODO: It is unclear if this should live in memory or separately, and unclear how large it should be
-    pub stack: [u32; 32],
+    pub stack: [u32; STACK_SIZE],
 
     pub file_state: FileState,
 
@@ -671,6 +672,12 @@ impl CPU {
             0x43 => {
                 // push Rx
                 let reg_x_index = reg_x_index;
+
+                if self.sp >= STACK_SIZE {
+                    self.logs.push(format!("Sim: Stack overflow"));
+
+                    return self.jump_to_error();
+                }
 
                 self.stack[self.sp] = self.get_reg(reg_x_index);
 
@@ -1523,8 +1530,7 @@ impl CPU {
     ) {
         if conditional(self.zero, self.carry) {
             // Should return
-            // SP must be < 31
-            if self.sp >= 31 {
+            if self.sp >= STACK_SIZE {
                 // Error
                 self.logs.push(format!("Sim: Stack overflow"));
 
@@ -1734,7 +1740,7 @@ impl CPU {
             zero: false,
             ram: Memory::from_bytes(buffer),
             program_path: PathBuf::from(path_str),
-            stack: [0; 32],
+            stack: [0; STACK_SIZE],
             file_state: FileState {
                 slots: data_slots,
                 loaded: FileLoadedState::None,
@@ -1759,7 +1765,7 @@ impl CPU {
         self.carry = false;
         self.zero = false;
         self.ram = Memory::from_bytes(buffer);
-        self.stack = [0; 32];
+        self.stack = [0; STACK_SIZE];
         self.file_state.loaded = FileLoadedState::None;
         self.halt = HaltState::Running;
         self.formatted_instruction.clear();

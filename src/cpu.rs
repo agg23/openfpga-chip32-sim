@@ -863,7 +863,6 @@ impl CPU {
                 let reg_y = self.get_reg(reg_y_index);
 
                 self.logs.push(format!(
-                    // TODO: What does this mean
                     "Sim: Adjusting pmp address of file {reg_x:#X} to {reg_y:#X}"
                 ));
 

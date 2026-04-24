@@ -9,7 +9,6 @@ use std::{
 };
 
 use chip32_sim::cpu::CPU;
-use regex::Regex;
 
 static NEXT_TEST_FILE_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -87,11 +86,8 @@ pub fn prep_test(asm_path: &str, replacements: HashMap<&str, &str>) -> PathBuf {
 
     let mut asm = fs::read_to_string(asm_path).expect(&format!("Unable to read {asm_path}"));
 
-    // TODO: This is naive
     for (original, replacement) in replacements.into_iter() {
-        let match_regex = Regex::new(&format!("\\{{{original}\\}}")).unwrap();
-
-        asm = match_regex.replace_all(&asm, replacement).to_string();
+        asm = asm.replace(&format!("{{{original}}}"), replacement);
     }
 
     fs::write(&tmp_path, asm).expect(&format!("Unable to write to {}", tmp_path.display()));

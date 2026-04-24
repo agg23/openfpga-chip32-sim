@@ -1267,8 +1267,10 @@ impl CPU {
                         );
                     }
                     _ => {
-                        // Do nothing
-                        todo!("Unimplemented {inst_prefix_byte:#X}")
+                        self.formatted_instruction = format!(".word #{inst_word:#06X}");
+                        self.logs
+                            .push(format!("Sim: Unimplemented opcode {inst_prefix_byte:#X}"));
+                        self.jump_to_error();
                     }
                 }
             }

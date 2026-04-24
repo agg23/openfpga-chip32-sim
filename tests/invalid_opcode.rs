@@ -15,10 +15,8 @@ fn run_until_halt(cpu: &mut CPU) {
 
 #[test]
 fn it_routes_unknown_opcodes_to_error_vector() {
-    let path = PathBuf::from(env::temp_dir()).join(format!(
-        "chip32_invalid_opcode_{}.bin",
-        std::process::id()
-    ));
+    let path = PathBuf::from(env::temp_dir())
+        .join(format!("chip32_invalid_opcode_{}.bin", std::process::id()));
 
     // 0x0000: 0x4601 (exit 1)
     // 0x0002: 0x0100 (invalid/reserved opcode)

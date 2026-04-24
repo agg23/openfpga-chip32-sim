@@ -415,11 +415,13 @@ impl CPU {
                     if x_value == 0 && y_value == 0 {
                         // Full match
                         self.zero = true;
+                        self.carry = false;
 
                         self.logs.push(format!("Sim: test strings matched"));
                         return;
                     } else if y_value == 0 {
                         // Partial match
+                        self.zero = false;
                         self.carry = true;
 
                         self.logs
@@ -429,7 +431,8 @@ impl CPU {
 
                     if x_value != y_value {
                         // No match
-                        // TODO: Do we need to clear flags?
+                        self.zero = false;
+                        self.carry = false;
                         self.logs.push(format!("Sim: test strings did not match"));
                         return;
                     }
@@ -439,6 +442,8 @@ impl CPU {
 
                     if x_address > 0x1FFF || y_address > 0x1FFF {
                         // Overran end of memory
+                        self.zero = false;
+                        self.carry = false;
                         self.logs.push(format!("Sim: test overran end of memory"));
 
                         return;

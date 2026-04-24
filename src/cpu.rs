@@ -5,7 +5,7 @@ use std::{
     fs::File,
     io::{self, Read},
     ops::{Shl, Shr},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use serde::Serialize;
@@ -32,7 +32,7 @@ pub struct CPU {
     pub zero: bool,
 
     pub ram: Memory,
-    pub initial_ram: Memory,
+    pub program_path: PathBuf,
     // TODO: It is unclear if this should live in memory or separately, and unclear how large it should be
     pub stack: [u32; 32],
 
@@ -1701,8 +1701,6 @@ impl CPU {
         let mut work_regs = [0; 16];
         work_regs[0] = selected_slot;
 
-        let initial_ram = Memory::from_bytes(buffer);
-
         Ok(CPU {
             pc: 0x2,
             sp: 0,
@@ -1710,8 +1708,8 @@ impl CPU {
             error_pc_reg: 0,
             carry: false,
             zero: false,
-            ram: initial_ram.clone(),
-            initial_ram,
+            ram: Memory::from_bytes(buffer),
+            program_path: PathBuf::from(path_str),
             stack: [0; 32],
             file_state: FileState {
                 slots: data_slots,
@@ -1725,9 +1723,10 @@ impl CPU {
         })
     }
 
-    pub fn restart_for_slot(&mut self, slot: u32) {
+    pub fn restart_for_slot(&mut self, slot: u32) -> Result<(), io::Error> {
         let mut preserved_regs = self.work_regs;
         preserved_regs[0] = slot;
+        let buffer = file_to_buffer(&self.program_path)?;
 
         self.pc = 0x2;
         self.sp = 0;
@@ -1735,18 +1734,20 @@ impl CPU {
         self.error_pc_reg = 0;
         self.carry = false;
         self.zero = false;
-        self.ram = self.initial_ram.clone();
+        self.ram = Memory::from_bytes(buffer);
         self.stack = [0; 32];
         self.file_state.loaded = FileLoadedState::None;
         self.halt = HaltState::Running;
         self.formatted_instruction.clear();
         self.logs
             .push(format!("Sim: Restarting CHIP32 with reload slot {slot:#X}"));
+
+        Ok(())
     }
 }
 
-fn file_to_buffer(path_str: &str) -> Result<Vec<u8>, io::Error> {
-    let mut file = File::open(path_str)?;
+fn file_to_buffer(path: impl AsRef<Path>) -> Result<Vec<u8>, io::Error> {
+    let mut file = File::open(path)?;
 
     let mut buffer = Vec::<u8>::new();
 

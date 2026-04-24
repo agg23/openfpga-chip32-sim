@@ -58,7 +58,7 @@ fn main() -> Result<(), io::Error> {
     let mut cpu = CPU::load_file(&args.bin, slots, args.data_slot)?;
 
     if args.json {
-        let exit_code = execute_with_json(&mut cpu, &args.reload_slots);
+        let exit_code = execute_with_json(&mut cpu, &args.reload_slots)?;
 
         println!("{}", build_json_output(&cpu));
 
@@ -87,7 +87,7 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn execute_to_halt(cpu: &mut CPU) -> usize {
+fn execute_until_halt(cpu: &mut CPU) -> usize {
     // No GUI, just run up to 1 million cycles
     for _ in 0..1_000_000 {
         cpu.step();
@@ -103,21 +103,21 @@ fn execute_to_halt(cpu: &mut CPU) -> usize {
     2
 }
 
-fn execute_with_json(cpu: &mut CPU, reload_slots: &[u32]) -> usize {
-    let exit_code = execute_to_halt(cpu);
+fn execute_with_json(cpu: &mut CPU, reload_slots: &[u32]) -> Result<usize, io::Error> {
+    let exit_code = execute_until_halt(cpu);
     if exit_code != 0 {
-        return exit_code;
+        return Ok(exit_code);
     }
 
     for slot in reload_slots {
-        cpu.restart_for_slot(*slot);
-        let exit_code = execute_to_halt(cpu);
+        cpu.restart_for_slot(*slot)?;
+        let exit_code = execute_until_halt(cpu);
         if exit_code != 0 {
-            return exit_code;
+            return Ok(exit_code);
         }
     }
 
-    0
+    Ok(0)
 }
 
 fn build_json_output(cpu: &CPU) -> String {

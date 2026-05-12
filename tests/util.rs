@@ -8,11 +8,22 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use chip32_sim::cpu::CPU;
+use chip32_sim::cpu::{HaltState, CPU};
 
 static NEXT_TEST_FILE_ID: AtomicUsize = AtomicUsize::new(0);
 
 // Testing
+
+pub fn execute_until_halt(cpu: &mut CPU) {
+    for _ in 0..1_000_000 {
+        cpu.step();
+        if !matches!(cpu.halt, HaltState::Running) {
+            return;
+        }
+    }
+
+    panic!("CPU did not halt");
+}
 
 pub fn test_command<TS: FnOnce(&mut CPU) -> (), TA: FnOnce(&CPU) -> ()>(
     asm_path: &str,

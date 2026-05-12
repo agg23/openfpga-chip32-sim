@@ -1,17 +1,9 @@
 use std::{env, fs, path::PathBuf};
 
 use chip32_sim::cpu::{HaltState, CPU};
+use util::execute_until_halt;
 
-fn run_until_halt(cpu: &mut CPU) {
-    for _ in 0..1_000_000 {
-        cpu.step();
-        if !matches!(cpu.halt, HaltState::Running) {
-            return;
-        }
-    }
-
-    panic!("CPU did not halt");
-}
+mod util;
 
 #[test]
 fn it_routes_unknown_opcodes_to_error_vector() {
@@ -24,7 +16,7 @@ fn it_routes_unknown_opcodes_to_error_vector() {
 
     let mut cpu =
         CPU::load_file(path.to_str().expect("temp path utf8"), None, None).expect("load temp bin");
-    run_until_halt(&mut cpu);
+    execute_until_halt(&mut cpu);
 
     assert!(matches!(cpu.halt, HaltState::Failure));
     assert!(

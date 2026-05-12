@@ -1,12 +1,13 @@
 #[derive(Clone)]
 pub struct Memory {
-    ram: [u8; 8 * 1024],
+    ram: Box<[u8]>,
     rom_size: usize,
 }
 
 impl Memory {
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        let mut ram = [0; 8 * 1024];
+        const RAM_SIZE: usize = 8 * 1024;
+        let mut ram = vec![0; RAM_SIZE].into_boxed_slice();
 
         bytes
             .iter()
@@ -45,13 +46,10 @@ impl Memory {
         )
     }
 
-    // TODO: Log message when you clobber the ROM data
     pub fn write_byte(&mut self, address: u16, byte: u8) {
         let address = address as usize;
 
-        if address < self.rom_size {
-            println!("ERROR: Clobbering ROM data");
-        }
+        self.warn_if_rom_write(address);
 
         self.ram[address] = byte;
     }
@@ -59,9 +57,7 @@ impl Memory {
     pub fn write_word(&mut self, address: u16, word: u16) {
         let address = address as usize;
 
-        if address < self.rom_size {
-            println!("ERROR: Clobbering ROM data");
-        }
+        self.warn_if_rom_write(address);
 
         let [lower, upper] = word.to_le_bytes();
 
@@ -72,9 +68,7 @@ impl Memory {
     pub fn write_long(&mut self, address: u16, word: u32) {
         let address = address as usize;
 
-        if address < self.rom_size {
-            println!("ERROR: Clobbering ROM data");
-        }
+        self.warn_if_rom_write(address);
 
         let [lower_a, upper_a, lower_b, upper_b] = word.to_le_bytes();
 
@@ -82,5 +76,11 @@ impl Memory {
         self.ram[address + 1] = upper_a;
         self.ram[address + 2] = lower_b;
         self.ram[address + 3] = upper_b;
+    }
+
+    fn warn_if_rom_write(&self, address: usize) {
+        if address < self.rom_size {
+            println!("ERROR: Clobbering ROM data");
+        }
     }
 }

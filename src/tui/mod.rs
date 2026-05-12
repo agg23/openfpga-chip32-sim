@@ -40,7 +40,7 @@ pub fn run_app<B: Backend>(
                 let mut did_esc = false;
 
                 if let DisplayMode::Memory { .. } = app.display_mode {
-                    if app.input.len() > 0 {
+                    if !app.input.is_empty() {
                         app.input = String::new();
                         did_esc = true;
                     }
@@ -57,7 +57,7 @@ pub fn run_app<B: Backend>(
                 KeyCode::Enter => {
                     match app.input.as_str() {
                         "s" | "step" => {
-                            // TODO: This is inefficient, but easy
+                            // Promote the precomputed lookahead state for before/after rendering.
                             state = next_state.clone();
                             next_state.step();
                         }

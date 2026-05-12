@@ -1,10 +1,11 @@
 use std::{
+    collections::HashMap,
     ffi::OsStr,
     fmt::Display,
     fs::File,
     io::{self, Read},
     ops::{Shl, Shr},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use serde::Serialize;
@@ -17,6 +18,8 @@ use crate::{
         num::{LowerLong, LowerWord},
     },
 };
+
+const STACK_SIZE: usize = 32;
 
 #[derive(Clone)]
 pub struct CPU {
@@ -31,8 +34,8 @@ pub struct CPU {
     pub zero: bool,
 
     pub ram: Memory,
-    // TODO: It is unclear if this should live in memory or separately, and unclear how large it should be
-    pub stack: [u32; 32],
+    pub program_path: PathBuf,
+    pub stack: [u32; STACK_SIZE],
 
     pub file_state: FileState,
 
@@ -41,6 +44,7 @@ pub struct CPU {
     pub formatted_instruction: String,
     pub logs: Vec<String>,
     pub active_bitstream: Option<usize>,
+    pub ui_visible: HashMap<u32, bool>,
 }
 
 #[derive(Clone)]
@@ -273,8 +277,30 @@ impl CPU {
                     |reg, immediate| (reg & immediate, false),
                 )
             }
-            0x10 => todo!("RSET"),
-            0x11 => todo!("CRC"),
+            0x10 => {
+                // rset #16
+                // The simulator does not currently model the hidden register-set state
+                // this instruction manipulates on hardware, but several real loaders
+                // use it as part of their boot epilogue. Consume the immediate and log
+                // the operation so those programs can continue.
+                let immediate = self.pc_word();
+
+                self.logs
+                    .push(format!("Sim: rset switched to register set {immediate:#X}"));
+                self.formatted_instruction = format!("rset #{immediate:#X}");
+            }
+            0x11 => {
+                // crc Rx,Ry,Rz,#n
+                let polynomial = self.pc_word();
+                let reg_z_index = (self.pc_word() & 0xF) as u8;
+                let address = self.get_reg(reg_x_index).to_lower_word();
+                let length = self.get_reg(reg_y_index);
+                let crc = self.crc16(address, length, self.get_reg(reg_z_index), polynomial);
+
+                self.set_reg(reg_z_index, crc.into());
+                self.formatted_instruction =
+                    format!("crc R{reg_x_index},R{reg_y_index},R{reg_z_index},#{polynomial:#X}");
+            }
             0x20 => {
                 // asl Rx,Ry
                 self.alu_double_value_inst("asl", inst_suffix_byte, true, false, |reg_x, reg_y| {
@@ -389,11 +415,13 @@ impl CPU {
                     if x_value == 0 && y_value == 0 {
                         // Full match
                         self.zero = true;
+                        self.carry = false;
 
                         self.logs.push(format!("Sim: test strings matched"));
                         return;
                     } else if y_value == 0 {
                         // Partial match
+                        self.zero = false;
                         self.carry = true;
 
                         self.logs
@@ -403,7 +431,8 @@ impl CPU {
 
                     if x_value != y_value {
                         // No match
-                        // TODO: Do we need to clear flags?
+                        self.zero = false;
+                        self.carry = false;
                         self.logs.push(format!("Sim: test strings did not match"));
                         return;
                     }
@@ -413,6 +442,8 @@ impl CPU {
 
                     if x_address > 0x1FFF || y_address > 0x1FFF {
                         // Overran end of memory
+                        self.zero = false;
+                        self.carry = false;
                         self.logs.push(format!("Sim: test overran end of memory"));
 
                         return;
@@ -647,6 +678,12 @@ impl CPU {
                 // push Rx
                 let reg_x_index = reg_x_index;
 
+                if self.sp >= STACK_SIZE {
+                    self.logs.push(format!("Sim: Stack overflow"));
+
+                    return self.jump_to_error();
+                }
+
                 self.stack[self.sp] = self.get_reg(reg_x_index);
 
                 self.sp += 1;
@@ -718,26 +755,43 @@ impl CPU {
             }
             0x47 => {
                 // clc/sec
+                // Official docs describe only 0x4700 (CLC) and 0x4701 (SEC), but
+                // real vendor binaries also ship with 0x4703 at the start vector.
+                // Those binaries behave like SEC on hardware, so treat the low bit
+                // as authoritative and ignore the upper compatibility bits here.
                 let identifier = reg_x_index;
 
-                match identifier {
-                    0 => self.set_carry(false),
-                    1 => self.set_carry(true),
-                    _ => panic!("Unknown identifier {identifier} for 0x47"),
-                };
+                self.set_carry((identifier & 0x1) != 0);
 
                 self.set_instruction_string(
-                    if identifier == 0 { "clc" } else { "sec" },
+                    if (identifier & 0x1) == 0 {
+                        "clc"
+                    } else {
+                        "sec"
+                    },
                     InstructionKind::None,
                 );
             }
             0x48 => {
                 // uivisible Rx,Ry
-                // Unimplemented
                 let reg_x = self.get_reg(reg_x_index);
                 let reg_y = self.get_reg(reg_y_index);
-                self.logs
-                    .push(format!("Sim: UIVISIBLE Rx: {reg_x} Ry: {reg_y}"));
+                let visible = match reg_y {
+                    0 => {
+                        self.ui_visible.insert(reg_x, false);
+                        false
+                    }
+                    1 => {
+                        self.ui_visible.insert(reg_x, true);
+                        true
+                    }
+                    _ => self.ui_visible.get(&reg_x).copied().unwrap_or(true),
+                };
+                self.zero = visible;
+                self.logs.push(format!(
+                    "Sim: UIVISIBLE id {reg_x} mode {reg_y} visible {}",
+                    if visible { 1 } else { 0 }
+                ));
 
                 self.set_instruction_string(
                     "uivisible",
@@ -809,7 +863,6 @@ impl CPU {
                 let reg_y = self.get_reg(reg_y_index);
 
                 self.logs.push(format!(
-                    // TODO: What does this mean
                     "Sim: Adjusting pmp address of file {reg_x:#X} to {reg_y:#X}"
                 ));
 
@@ -1052,6 +1105,7 @@ impl CPU {
                         self.ram.write_byte((reg_x + i).to_lower_word(), byte);
                     }
 
+                    *offset += reg_y;
                     self.zero = true;
                 } else {
                     // No open file, throw error
@@ -1212,8 +1266,10 @@ impl CPU {
                         );
                     }
                     _ => {
-                        // Do nothing
-                        todo!("Unimplemented {inst_prefix_byte:#X}")
+                        self.formatted_instruction = format!(".word #{inst_word:#06X}");
+                        self.logs
+                            .push(format!("Sim: Unimplemented opcode {inst_prefix_byte:#X}"));
+                        self.jump_to_error();
                     }
                 }
             }
@@ -1480,8 +1536,7 @@ impl CPU {
     ) {
         if conditional(self.zero, self.carry) {
             // Should return
-            // SP must be < 31
-            if self.sp >= 31 {
+            if self.sp >= STACK_SIZE {
                 // Error
                 self.logs.push(format!("Sim: Stack overflow"));
 
@@ -1505,13 +1560,26 @@ impl CPU {
         self.pc = 0;
     }
 
-    // fn pc_byte(&mut self) -> u8 {
-    //     let value = self.ram.mem_read_byte(self.pc);
+    fn crc16(&self, address: u16, length: u32, initial: u32, polynomial: u16) -> u16 {
+        let mut crc = initial.to_lower_word();
 
-    //     self.pc += 1;
+        for offset in 0..length {
+            let byte = self
+                .ram
+                .read_byte(address.wrapping_add(offset.to_lower_word()));
+            crc ^= (byte as u16) << 8;
 
-    //     value
-    // }
+            for _ in 0..8 {
+                crc = if (crc & 0x8000) != 0 {
+                    (crc << 1) ^ polynomial
+                } else {
+                    crc << 1
+                };
+            }
+        }
+
+        crc
+    }
 
     fn pc_word(&mut self) -> u16 {
         let value = self.ram.read_word(self.pc);
@@ -1677,7 +1745,8 @@ impl CPU {
             carry: false,
             zero: false,
             ram: Memory::from_bytes(buffer),
-            stack: [0; 32],
+            program_path: PathBuf::from(path_str),
+            stack: [0; STACK_SIZE],
             file_state: FileState {
                 slots: data_slots,
                 loaded: FileLoadedState::None,
@@ -1686,12 +1755,35 @@ impl CPU {
             formatted_instruction: String::new(),
             logs: Vec::new(),
             active_bitstream: None,
+            ui_visible: HashMap::new(),
         })
+    }
+
+    pub fn restart_for_slot(&mut self, slot: u32) -> Result<(), io::Error> {
+        let mut preserved_regs = self.work_regs;
+        preserved_regs[0] = slot;
+        let buffer = file_to_buffer(&self.program_path)?;
+
+        self.pc = 0x2;
+        self.sp = 0;
+        self.work_regs = preserved_regs;
+        self.error_pc_reg = 0;
+        self.carry = false;
+        self.zero = false;
+        self.ram = Memory::from_bytes(buffer);
+        self.stack = [0; STACK_SIZE];
+        self.file_state.loaded = FileLoadedState::None;
+        self.halt = HaltState::Running;
+        self.formatted_instruction.clear();
+        self.logs
+            .push(format!("Sim: Restarting CHIP32 with reload slot {slot:#X}"));
+
+        Ok(())
     }
 }
 
-fn file_to_buffer(path_str: &str) -> Result<Vec<u8>, io::Error> {
-    let mut file = File::open(path_str)?;
+fn file_to_buffer(path: impl AsRef<Path>) -> Result<Vec<u8>, io::Error> {
+    let mut file = File::open(path)?;
 
     let mut buffer = Vec::<u8>::new();
 

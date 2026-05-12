@@ -17,7 +17,6 @@ pub struct DataJsonData {
 
 #[derive(Clone, Deserialize)]
 pub struct DataSlot {
-    // TODO: This can also be a string of hex
     #[serde(deserialize_with = "serde_string_or_int")]
     pub id: u32,
     pub filename: String,

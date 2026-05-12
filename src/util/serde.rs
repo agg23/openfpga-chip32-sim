@@ -12,7 +12,10 @@ impl HexStringOrInt for u32 {
 
 impl HexStringOrInt for &str {
     fn to_int(self) -> u32 {
-        let raw_bytes = self.trim_start_matches("0x");
+        let raw_bytes = self
+            .strip_prefix("0x")
+            .or_else(|| self.strip_prefix("0X"))
+            .unwrap_or(self);
         u32::from_str_radix(raw_bytes, 16)
             .expect(&format!("Could not parse hex value \"{raw_bytes}\""))
     }

@@ -1,3 +1,4 @@
 /target
 tests/**/*.bin
 tests/chip32-tmp.asm
+.DS_Store
